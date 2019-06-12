@@ -1,0 +1,12 @@
+[package]
+name = "mempool-sync"
+version = "0.1.0"
+authors = ["Harry <hlbarber93@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+# minisketch-rs = "*"
+bitcoin = "*"
+secp256k1 = "*"
+bitcoin_hashes = "*"
+arrayref = "*"
