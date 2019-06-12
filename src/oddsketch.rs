@@ -1,13 +1,14 @@
 use std::ops::BitXor;
 
-const OS_LEN_BYTES: usize = 2^8;
+const OS_LEN_BYTES: usize = 256;
 
-pub struct Oddsketch([u8; OS_LEN_BYTES]);
+#[derive(Clone)]
+pub struct Oddsketch(pub [u8; OS_LEN_BYTES]);
 
 impl Oddsketch {
     pub fn insert(&mut self, short_id: u64) {
-        let os_index = short_id as u8;
-        self.0[(os_index / 8) as usize] ^= 2^((os_index % 8) as u8);
+        let os_index = (short_id % (OS_LEN_BYTES as u64 * 8)) as usize;
+        self.0[os_index / 8] ^= 1 << (os_index % 8);
     }
 
     pub fn hamming_weight(&self) -> u32 {
@@ -34,5 +35,11 @@ impl BitXor for Oddsketch {
         }
 
         Oddsketch(out)
+    }
+}
+
+impl Default for Oddsketch {
+    fn default() -> Self {
+        Oddsketch([0; OS_LEN_BYTES])
     }
 }
