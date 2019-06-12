@@ -9,9 +9,9 @@ use log::info;
 use crate::mempool::Mempool;
 
 const TX_PADDING: usize = 256;
-const N_SHARED: usize = 40954;
-const N_ALICE: usize = 34;
-const N_BOB: usize = 6;
+const N_SHARED: usize = 1_000_000;
+const N_ALICE: usize = 33;
+const N_BOB: usize = 3;
 
 
 fn generate_random_tx() -> Transaction {
@@ -36,11 +36,12 @@ fn generate_random_tx() -> Transaction {
 
 fn main() {
     std::env::set_var("RUST_LOG", "INFO");
-    env_logger::init();
+    pretty_env_logger::init_timed();
 
     info!("generating {} shared transactions...", N_SHARED);
     // Generate shared transactions
-    let shared_txs: Vec<Transaction> = (0..N_SHARED).map(|_| generate_random_tx()).collect();
+    let alice_shared_txs: Vec<Transaction> = (0..N_SHARED).map(|_| generate_random_tx()).collect();
+    let bob_shared_txs = alice_shared_txs.clone();
 
     // Generate private transactions
     info!("generating {} private transactions...", N_ALICE + N_BOB);
@@ -52,11 +53,13 @@ fn main() {
     let mut bob_mempool = Mempool::default();
 
     // Populate
-    info!("inserting into mempool...");
-    alice_mempool.insert_batch(shared_txs.clone());
-    bob_mempool.insert_batch(shared_txs);
+    info!("inserting into Alices mempool...");
+    alice_mempool.insert_batch(alice_shared_txs);
     alice_mempool.insert_batch(alice_txs);
+
+    info!("inserting into Bobs mempool...");
     bob_mempool.insert_batch(bob_txs);
+    bob_mempool.insert_batch(bob_shared_txs);
     
     // Calculate estimated difference
     info!("calculating difference...");
