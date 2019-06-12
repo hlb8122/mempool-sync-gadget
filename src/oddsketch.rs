@@ -17,7 +17,7 @@ impl Oddsketch {
 
     pub fn size(&self) -> u32 {
         let length = 8. * (OS_LEN_BYTES as f64);
-        let weight = self.hamming_weight() as f64;
+        let weight = f64::from(self.hamming_weight());
 
         let size_approx = f64::ln(1. - 2. * weight / length) / f64::ln(1. - 2. / length);
 
@@ -30,8 +30,8 @@ impl BitXor for Oddsketch {
 
     fn bitxor(self, rhs: Self) -> Self::Output {
         let mut out = [0; OS_LEN_BYTES];
-        for i in 0..OS_LEN_BYTES {
-            out[i] = self.0[i] ^ rhs.0[i];
+        for (i, item) in out.iter_mut().enumerate() {
+            *item = self.0[i] ^ rhs.0[i];
         }
 
         Oddsketch(out)
