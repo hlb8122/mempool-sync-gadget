@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Harry <hlbarber93@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "mempool_sync"
+
 [dependencies]
 minisketch-rs = "*"
 bitcoin = "*"
@@ -12,3 +15,10 @@ rand = "0.6"
 bitcoin_hashes = "*"
 log = "*"
 pretty_env_logger = "*"
+
+[dev-dependencies]
+criterion = "*"
+
+[[bench]]
+name = "oddsketch"
+harness = false

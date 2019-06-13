@@ -1,6 +1,3 @@
-pub mod mempool;
-pub mod oddsketch;
-
 use std::collections::HashSet;
 
 use arrayref::array_ref;
@@ -8,7 +5,7 @@ use bitcoin::{util::psbt::serialize::Deserialize, Script, Transaction, TxIn};
 use log::info;
 use rand::prelude::*;
 
-use crate::mempool::Mempool;
+use mempool_sync::mempool::Mempool;
 
 const TX_PADDING: usize = 256;
 const N_SHARED: usize = 100_000;
@@ -106,5 +103,5 @@ fn main() {
         .cloned()
         .collect();
 
-    info!("discrepency: {:?}", discrepency);
+    info!("discrepency between actual and estimated symm diff: {}", discrepency.len());
 }
