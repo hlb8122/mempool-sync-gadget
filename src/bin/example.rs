@@ -103,5 +103,8 @@ fn main() {
         .cloned()
         .collect();
 
-    info!("discrepency between actual and estimated symm diff: {}", discrepency.len());
+    info!(
+        "discrepency between actual and estimated symm diff: {}",
+        discrepency.len()
+    );
 }
