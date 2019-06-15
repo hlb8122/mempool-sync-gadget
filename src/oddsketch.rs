@@ -1,4 +1,4 @@
-use std::ops::{BitXor, Deref};
+use std::ops::{BitXor, BitXorAssign, Deref};
 
 const OS_LEN_BYTES: usize = 256;
 
@@ -39,6 +39,14 @@ impl BitXor for Oddsketch {
         }
 
         Oddsketch(out)
+    }
+}
+
+impl BitXorAssign for Oddsketch {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        for (i, item) in self.0.iter_mut().enumerate() {
+            *item ^= rhs.0[i];
+        }
     }
 }
 
