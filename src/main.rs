@@ -20,8 +20,7 @@ fn main() {
     // ZeroMQ
     let context = Arc::new(zmq::Context::new());
     let sub = Sub::builder(context)
-        .bind("tcp://127.0.0.1:29000")
-        .filter(b"")
+        .bind("ipc:///tmp/bitcoind.tx.raw")
         .build();
     let runner = sub.and_then(|sub| {
         sub.stream()
