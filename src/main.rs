@@ -20,7 +20,7 @@ fn main() {
     // ZeroMQ
     let context = Arc::new(zmq::Context::new());
     let sub = Sub::builder(context)
-        .bind("tcp://*:5562")
+        .bind("tcp://127.0.0.1:29000")
         .filter(b"")
         .build();
     let runner = sub.and_then(|sub| {
@@ -38,8 +38,4 @@ fn main() {
     tokio::run(runner.map(|_| ()).map_err(|e| {
         error!("{}", e);
     }));
-
-
-
-
 }
