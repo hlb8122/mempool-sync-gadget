@@ -3,7 +3,7 @@ use bitcoin::Transaction;
 use minisketch_rs::Minisketch;
 use std::collections::{HashMap, HashSet};
 
-use crate::oddsketch::Oddsketch;
+use oddsketch::Oddsketch;
 
 pub struct Mempool {
     minisketch: Minisketch,

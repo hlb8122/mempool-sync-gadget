@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use arrayref::array_ref;
 use bitcoin::{util::psbt::serialize::Deserialize, Script, Transaction, TxIn};
 use log::info;
-use rand::prelude::*;
 
 use mempool_sync::mempool::Mempool;
 
@@ -33,8 +32,7 @@ fn generate_random_tx() -> Transaction {
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "INFO");
-    pretty_env_logger::init_timed();
+
 
     info!("generating {} shared transactions...", N_SHARED);
     // Generate shared transactions
