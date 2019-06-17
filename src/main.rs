@@ -8,11 +8,6 @@ use futures_zmq::{prelude::*, Sub};
 use futures::{Future, Stream, lazy, future::ok};
 use bitcoin::{Transaction, util::psbt::serialize::Deserialize};
 
-enum State {
-    Idle,
-
-}
-
 fn main() {
     // Logging
     std::env::set_var("RUST_LOG", "INFO");
@@ -28,7 +23,8 @@ fn main() {
     let context = Arc::new(zmq::Context::new());
     let mempool_shared_inner = mempool_shared.clone();
     let tx_sub = Sub::builder(context.clone())
-        .connect("ipc:///tmp/bitcoind.tx.raw")
+        .connect("tcp:///127.0.0.1:28332")
+        .filter("rawtx".as_bytes())
         .build();
     let tx_runner = tx_sub.and_then(move |tx_sub| {
         tx_sub.stream()
@@ -45,8 +41,9 @@ fn main() {
     });
 
     // Block subscription
-    let block_sub = Sub::builder(context)
-        .connect("ipc:///tmp/bitcoind.block.hash")
+    let block_sub = Sub::builder(context.clone())
+        .connect("tcp:///127.0.0.1:28332")
+        .filter("hashblock".as_bytes())
         .build();
     let block_runner = block_sub.and_then(move |block_sub| {
         block_sub.stream()
@@ -58,7 +55,7 @@ fn main() {
                 *mempool_shared.lock().unwrap() = Mempool::default();
                 
                 // TODO: Repopulate
-                
+
                 ok(())
             })
     }).map(|_| ()).map_err(|e| {
