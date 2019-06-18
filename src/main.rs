@@ -94,6 +94,8 @@ fn main() {
 
     let mempool_shared_inner = mempool_shared.clone();
     let server = incoming.map_err(|e| error!("{}", e)).for_each(move |socket| {
+        let peer_addr = socket.peer_addr().unwrap();
+        info!("new peer {}", peer_addr);
         let mempool_shared_inner = mempool_shared_inner.clone();
         let framed_sock = Framed::new(socket, MessageCodec);
         let (send_stream, received_stream) = framed_sock.split();
@@ -101,6 +103,7 @@ fn main() {
         let responses = received_stream.filter_map(move |msg| {
             match msg {
                 Message::Minisketch(mut peer_minisketch) => {
+                    info!("received minisketch from {}", peer_addr);
                     let minisketch = mempool_shared_inner.lock().unwrap().minisketch()  ;
                     peer_minisketch.merge(&minisketch).unwrap();
 
@@ -112,6 +115,7 @@ fn main() {
                     ))
                 }
                 Message::Oddsketch(peer_oddsketch) => {
+                    info!("received oddsketch from {}", peer_addr);
                     let mempool_guard = mempool_shared_inner.lock().unwrap();
                     let oddsketch = mempool_guard.oddsketch();
                     let estimated_size = (oddsketch ^ peer_oddsketch).size();
@@ -119,6 +123,7 @@ fn main() {
                     Some(Message::Minisketch(out_minisketch))
                 }
                 Message::GetTxs(vec_ids) => {
+                    info!("received transaction requests {}", peer_addr);
                     let mempool_guard = mempool_shared_inner.lock().unwrap();
                     Some(Message::Txs(
                         vec_ids
@@ -129,6 +134,7 @@ fn main() {
                     ))
                 }
                 Message::Txs(vec_txs) => {
+                    info!("received transactions {}", peer_addr);
                     let mut mempool_guard = mempool_shared_inner.lock().unwrap();
                     for tx in vec_txs {
                         let raw = tx.serialize();
@@ -146,6 +152,7 @@ fn main() {
         let mempool_shared_inner = mempool_shared.clone();
         let interval = Interval::new_interval(Duration::from_millis(1000)).map_err(|e| {error!("{}", e); Error::from_raw_os_error(0)});
         let heartbeat = interval.map(move |_| {
+            info!("sending heartbeat oddsketch");
             Message::Oddsketch(mempool_shared_inner.lock().unwrap().oddsketch())
         });
 
