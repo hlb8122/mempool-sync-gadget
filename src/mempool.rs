@@ -37,6 +37,10 @@ impl Mempool {
         self.oddsketch.insert(short_id);
     }
 
+    pub fn tx(&self) -> &HashMap<u64, Transaction> {
+        &self.txs
+    }
+
     pub fn oddsketch(&self) -> Oddsketch {
         self.oddsketch.clone()
     }
