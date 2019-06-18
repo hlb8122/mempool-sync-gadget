@@ -43,14 +43,14 @@ fn main() {
     let context = Arc::new(zmq::Context::new());
     let mempool_shared_inner = mempool_shared.clone();
     let tx_sub = Sub::builder(context.clone())
-        .connect("tcp:///127.0.0.1:28332")
+        .connect("tcp://127.0.0.1:28332")
         .filter("rawtx".as_bytes())
         .build();
     let tx_runner = tx_sub
         .and_then(move |tx_sub| {
             tx_sub.stream().for_each(move |multipart| {
                 // Add new transactions to mempool
-                let tx_raw: &[u8] = &multipart.get(0).unwrap();
+                let tx_raw: &[u8] = &multipart.get(1).unwrap();
                 info!("new tx");
                 let new_tx = Transaction::deserialize(tx_raw).unwrap();
                 mempool_shared_inner.lock().unwrap().insert(new_tx);
@@ -65,13 +65,13 @@ fn main() {
     // Block subscription
     let mempool_shared_inner = mempool_shared.clone();
     let block_sub = Sub::builder(context.clone())
-        .connect("tcp:///127.0.0.1:28332")
+        .connect("tcp://127.0.0.1:28332")
         .filter("hashblock".as_bytes())
         .build();
     let block_runner = block_sub
         .and_then(move |block_sub| {
             block_sub.stream().for_each(move |multipart| {
-                let block_hash: &[u8] = &multipart.get(0).unwrap();
+                let block_hash: &[u8] = &multipart.get(1).unwrap();
                 info!("new block = {:?}", block_hash);
 
                 // Reset mempool
