@@ -3,7 +3,7 @@ use bitcoin::Transaction;
 use minisketch_rs::Minisketch;
 use std::collections::{HashMap, HashSet};
 
-use crate::oddsketch::Oddsketch;
+use oddsketch::Oddsketch;
 
 pub struct Mempool {
     minisketch: Minisketch,
@@ -35,6 +35,10 @@ impl Mempool {
 
         // Update Oddsketch
         self.oddsketch.insert(short_id);
+    }
+
+    pub fn tx(&self) -> &HashMap<u64, Transaction> {
+        &self.txs
     }
 
     pub fn oddsketch(&self) -> Oddsketch {
