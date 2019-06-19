@@ -20,7 +20,7 @@ pub struct Response {
 }
 
 impl Response {
-    /// Extract the result from a response
+    // Extract the result from a response
     pub fn result<T>(&self) -> Result<T, ClientError>
     where
         for<'de> T: serde::Deserialize<'de>,
@@ -35,7 +35,7 @@ impl Response {
     }
 }
 
-/// A handle to a remote JSONRPC server
+// A handle to a remote JSONRPC server
 #[derive(Clone)]
 pub struct JsonClient {
     endpoint: String,
@@ -52,11 +52,11 @@ impl JsonClient {
             username,
             password,
             client: reqwest::r#async::Client::new(),
-            nonce: Arc::new(Mutex::new(0)), // TODO: Bit heavy handed
+            nonce: Arc::new(Mutex::new(0)), // TODO: Bit heavy handed, use atomic uint
         }
     }
-    /// Sends a request to a async client
 
+    /// Sends a request to a async client
     pub fn send_request(
         &self,
         request: &Request,
@@ -88,7 +88,7 @@ impl JsonClient {
         Box::new(response)
     }
 
-    /// Builds a request
+    // Builds a request
     pub fn build_request(&self, method: String, params: Vec<Value>) -> Request {
         let mut nonce = self.nonce.lock().unwrap();
         *nonce += 1;
@@ -101,7 +101,7 @@ impl JsonClient {
 }
 
 impl JsonClient {
-    /// Accessor for the last-used nonce
+    // Accessor for the last-used nonce
     pub fn last_nonce(&self) -> u64 {
         *self.nonce.lock().unwrap()
     }
@@ -109,15 +109,15 @@ impl JsonClient {
 
 #[derive(Debug)]
 pub enum ClientError {
-    /// Json decoding error.
+    // Json decoding error.
     Json(serde_json::Error),
-    /// Client error
+    // Client error
     Client(reqwest::Error),
-    /// Rpc error,
+    // Rpc error,
     Rpc(serde_json::Value),
-    /// Response has neither error nor result.
+    // Response has neither error nor result.
     NoErrorOrResult,
-    /// Response to a request did not have the expected nonce
+    // Response to a request did not have the expected nonce
     NonceMismatch,
 }
 

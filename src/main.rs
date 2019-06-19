@@ -39,8 +39,9 @@ fn main() {
     ));
 
     // ZeroMQ
-    // Transaction subscription
     let context = Arc::new(zmq::Context::new());
+    
+    // Transaction subscription
     let mempool_shared_inner = mempool_shared.clone();
     let tx_sub = Sub::builder(context.clone())
         .connect("tcp://127.0.0.1:28332")
@@ -48,11 +49,12 @@ fn main() {
         .build();
     let tx_runner = tx_sub
         .and_then(move |tx_sub| {
+            // For each transaction received via ZMQ
             tx_sub.stream().for_each(move |multipart| {
-                // Add new transactions to mempool
+                // Add new transaction to mempool
                 let tx_raw: &[u8] = &multipart.get(1).unwrap();
-                info!("new tx");
                 let new_tx = Transaction::deserialize(tx_raw).unwrap();
+                info!("new tx {}", new_tx.txid());
                 mempool_shared_inner.lock().unwrap().insert(new_tx);
                 ok(())
             })
@@ -77,7 +79,7 @@ fn main() {
                 // Reset mempool
                 *mempool_shared_inner.lock().unwrap() = Mempool::default();
 
-                // TODO: Repopulate
+                // TODO: Repopulate via RPC
 
                 ok(())
             })
@@ -96,45 +98,68 @@ fn main() {
     let server = incoming.map_err(|e| error!("{}", e)).for_each(move |socket| {
         let peer_addr = socket.peer_addr().unwrap();
         info!("new peer {}", peer_addr);
-        let mempool_shared_inner = mempool_shared_inner.clone();
+
+        // Frame socket
         let framed_sock = Framed::new(socket, MessageCodec);
         let (send_stream, received_stream) = framed_sock.split();
+
+        // Inner variables
         let json_client_inner = json_client.clone();
+        let mempool_shared_inner = mempool_shared_inner.clone();
+
+        // Response stream
         let responses = received_stream.filter_map(move |msg| {
             match msg {
                 Message::Minisketch(mut peer_minisketch) => {
                     info!("received minisketch from {}", peer_addr);
+
+                    // Merge minisketches
                     let minisketch = mempool_shared_inner.lock().unwrap().minisketch()  ;
                     peer_minisketch.merge(&minisketch).unwrap();
 
+                    // Decode minisketch
                     let mut decoded_ids = [0u64; 512]; // Overestimation here
                     peer_minisketch.decode(&mut decoded_ids).unwrap();
 
+                    // Remove excess
+                    let filtered_ids = decoded_ids.iter().filter(|id| **id != 0).cloned().collect();
+                   
                     Some(Message::GetTxs(
-                        decoded_ids.iter().filter(|id| **id != 0).cloned().collect(),
+                        filtered_ids,
                     ))
                 }
                 Message::Oddsketch(peer_oddsketch) => {
                     info!("received oddsketch from {}", peer_addr);
+
+                    // Xor oddsketches
                     let mempool_guard = mempool_shared_inner.lock().unwrap();
                     let oddsketch = mempool_guard.oddsketch();
                     let estimated_size = (oddsketch ^ peer_oddsketch).size();
+
+                    // Slice minisketch to that length
                     let out_minisketch = mempool_guard.minisketch_slice(estimated_size as usize);
+                    
                     Some(Message::Minisketch(out_minisketch))
                 }
                 Message::GetTxs(vec_ids) => {
                     info!("received transaction requests {}", peer_addr);
+
+                    // Get txs from mempool
                     let mempool_guard = mempool_shared_inner.lock().unwrap();
-                    Some(Message::Txs(
-                        vec_ids
+                    let txs = vec_ids
                             .iter()
                             .filter_map(|id| mempool_guard.tx().get(id))
                             .cloned()
-                            .collect(),
+                            .collect();
+
+                    Some(Message::Txs(
+                        txs
                     ))
                 }
                 Message::Txs(vec_txs) => {
                     info!("received transactions {}", peer_addr);
+
+                    // Add txs to mempool (and node mempool)
                     let mut mempool_guard = mempool_shared_inner.lock().unwrap();
                     for tx in vec_txs {
                         let raw = tx.serialize();
@@ -155,8 +180,11 @@ fn main() {
             info!("sending heartbeat oddsketch");
             Message::Oddsketch(mempool_shared_inner.lock().unwrap().oddsketch())
         });
-
+        
+        // Merge responses with heartbeat
         let out = responses.select(heartbeat);
+
+        // Send
         let send = send_stream.send_all(out).map(|_| ()).or_else(move |e| {
             error!("{}", e);
             Ok(())
@@ -164,6 +192,7 @@ fn main() {
         tokio::spawn(send)
     });
 
+    // Spawn event loop
     tokio::run(lazy(|| {
         tokio::spawn(tx_runner);
         tokio::spawn(block_runner);
