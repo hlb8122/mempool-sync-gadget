@@ -1,6 +1,6 @@
 # Mempool Synchronization Gadget
 
-Using a combination of ZeroMQ and RPC the gadget communicates with another instance of itself and allows two nodes mempools to be synced with low bandwidth and low overhead.
+Using a combination of ZeroMQ and RPC the gadget communicates with another instance of itself and allows two nodes mempools to be synced with near minimal bandwidth in 2 round trips.
 
 ## Prerequisites
 
