@@ -1,0 +1,17 @@
+name: mempool-sync
+version: "0.1.0"
+author: Harry Barber <hlbarber93@gmail.com>
+about: > 
+  Using a combination of ZeroMQ and RPC the gadget communicates with 
+  another instance of itself and allows two nodes mempools to be synced 
+  with near minimal bandwidth in 2 round trips.
+args:
+    - ip:
+        long: ip
+        help: Sets the peers IP address
+        takes_value: true
+    - port:
+        short: p
+        long: port
+        help: Sets the peers port
+        takes_value: true

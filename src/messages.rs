@@ -12,10 +12,10 @@ use std::io::Error;
 pub struct MessageCodec;
 
 pub enum Message {
-    Oddsketch(Oddsketch), // 0 || oddsketch bytes  
+    Oddsketch(Oddsketch),   // 0 || oddsketch bytes
     Minisketch(Minisketch), // 1 || length (u16) || minisketch
-    GetTxs(Vec<u64>), // 2 || n_ids (u16) || id || .. || id
-    Txs(Vec<Transaction>), // 3 || n_txs (u16) || tx_len (u16) || tx || .. || tx_len (u16) || tx
+    GetTxs(Vec<u64>),       // 2 || n_ids (u16) || id || .. || id
+    Txs(Vec<Transaction>),  // 3 || n_txs (u16) || tx_len (u16) || tx || .. || tx_len (u16) || tx
 }
 
 impl Encoder for MessageCodec {

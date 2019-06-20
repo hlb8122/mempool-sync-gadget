@@ -20,3 +20,4 @@ serde_json = "*"
 serde = "*"
 reqwest = "*"
 bytes = "*"
+clap = { version = "*", features = ["yaml"]}
