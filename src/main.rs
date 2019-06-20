@@ -165,6 +165,10 @@ fn main() {
                         let oddsketch = mempool_guard.oddsketch();
                         let estimated_size = (oddsketch ^ peer_oddsketch).size();
 
+                        if estimated_size == 0 {
+                            return None    
+                        }
+
                         // Slice minisketch to that length
                         let out_minisketch =
                             mempool_guard.minisketch_slice(estimated_size as usize);
