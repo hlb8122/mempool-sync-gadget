@@ -12,7 +12,11 @@ The `minisketch-rs` library seems to try build using a Linux only header file. A
 
 ### ZeroMQ
 
-Start Bitcoin's ZeroMQ publishers using `bitcoind -zmqpubhashblock=tcp://127.0.0.1:28332  -zmqpubrawtx=tcp://127.0.0.1:28332` or adding
+Start Bitcoin's ZeroMQ publishers using 
+
+```bitcoind -zmqpubhashblock=tcp://127.0.0.1:28332 -zmqpubrawtx=tcp://127.0.0.1:28332```
+  
+or by adding
 
 ```
 zmqpubhashblock=tcp://127.0.0.1:28332
