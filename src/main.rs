@@ -142,9 +142,9 @@ fn main() {
                 match msg {
                     Message::Minisketch(mut peer_minisketch) => {
                         info!("received minisketch from {}", peer_addr);
-
+                        let mempool_guard = mempool_shared_inner.lock().unwrap();
                         // Merge minisketches
-                        let minisketch = mempool_shared_inner.lock().unwrap().minisketch();
+                        let minisketch = mempool_guard.minisketch();
                         peer_minisketch.merge(&minisketch).unwrap();
 
                         // Decode minisketch
@@ -152,10 +152,15 @@ fn main() {
                         peer_minisketch.decode(&mut decoded_ids).unwrap();
 
                         // Remove excess
-                        let filtered_ids =
-                            decoded_ids.iter().filter(|id| **id != 0).cloned().collect();
+                        let filtered_ids: Vec<u64> =
+                            decoded_ids.iter().filter(|id| **id != 0).filter(|id| !mempool_guard.txs().contains_key(id)).cloned().collect();
 
-                        Some(Message::GetTxs(filtered_ids))
+                        if filtered_ids.is_empty() {
+                            None
+                        } else {
+                            Some(Message::GetTxs(filtered_ids))
+                        }
+                        
                     }
                     Message::Oddsketch(peer_oddsketch) => {
                         info!("received oddsketch from {}", peer_addr);
@@ -184,7 +189,7 @@ fn main() {
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
                         let txs = vec_ids
                             .iter()
-                            .filter_map(|id| mempool_guard.tx().get(id))
+                            .filter_map(|id| mempool_guard.txs().get(id))
                             .cloned()
                             .collect();
 
