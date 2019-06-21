@@ -192,7 +192,7 @@ fn main() {
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
                         let oddsketch = mempool_guard.oddsketch();
 
-                        // TODO: Better padding
+                        // Esimtate symmetric difference
                         let estimated_size = (oddsketch ^ peer_oddsketch).size();
                         info!("estimated difference {}", estimated_size);
 
@@ -255,6 +255,7 @@ fn main() {
             });
             let heartbeat = interval.filter_map(move |_| {
                 if is_client {
+                    // If client then send oddsketch every heartbeat
                     info!("sending heartbeat oddsketch to {}", peer_addr);
                     Some(Message::Oddsketch(
                         mempool_shared_inner.lock().unwrap().oddsketch(),
