@@ -60,10 +60,6 @@ impl Mempool {
         new_minisketch
     }
 
-    pub fn tx_set(&self) -> HashSet<Transaction> {
-        self.txs.values().cloned().collect()
-    }
-
     pub fn insert_batch(&mut self, txs: Vec<Transaction>) {
         for tx in txs {
             self.insert(tx);

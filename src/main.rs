@@ -43,9 +43,11 @@ fn main() {
     // New peer stream
     let (peer_send, peer_recv) = mpsc::channel::<TcpStream>(1024);
 
-    // Add peer via command line
+    // Load values from CLI
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
+
+    // Add peer
     let peer_opt = match matches.value_of("ip") {
         Some(ip) => {
             let port: u16 = matches.value_of("port").unwrap_or("8885").parse().unwrap();
@@ -57,14 +59,22 @@ fn main() {
         None => None,
     };
 
+    // Heartbeat duration
+    let hb_duration = Duration::from_millis(
+        matches
+            .value_of("heartbeat")
+            .map(|hb| hb.parse().unwrap_or(2000))
+            .unwrap_or(2000),
+    );
+
     // Mempool
     let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
 
     // Bitcoin client
     let json_client = Arc::new(JsonClient::new(
         "http://127.0.0.1:8332".to_string(),
-        "0hlb".to_string(),
-        "heychris".to_string(),
+        matches.value_of("rpcusername").unwrap_or("").to_string(),
+        matches.value_of("rpcpassword").unwrap_or("").to_string(),
     ));
 
     // ZeroMQ
@@ -80,7 +90,7 @@ fn main() {
         .and_then(move |tx_sub| {
             // For each transaction received via ZMQ
             tx_sub.stream().for_each(move |multipart| {
-                // Add new transaction to mempool
+                // Add new transaction to gadget mempool
                 let tx_raw: &[u8] = &multipart.get(1).unwrap();
                 let new_tx = Transaction::deserialize(tx_raw).unwrap();
                 info!("new tx {} from zmq", new_tx.txid());
@@ -104,7 +114,7 @@ fn main() {
             block_sub.stream().for_each(move |_| {
                 info!("new block from zmq");
 
-                // Reset mempool
+                // Reset gadget mempool
                 *mempool_shared_inner.lock().unwrap() = Mempool::default();
 
                 // TODO: Repopulate via RPC
@@ -142,6 +152,7 @@ fn main() {
                     Message::Minisketch(mut peer_minisketch) => {
                         info!("received minisketch from {}", peer_addr);
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
+
                         // Merge minisketches
                         let minisketch = mempool_guard.minisketch();
                         peer_minisketch.merge(&minisketch).unwrap();
@@ -160,8 +171,8 @@ fn main() {
 
                         info!("minisketch decoded {} ids", filtered_ids.len());
 
-                        // If empty then don't send
                         if filtered_ids.is_empty() {
+                            // If empty, don't send
                             None
                         } else {
                             Some(Message::GetTxs(filtered_ids))
@@ -178,8 +189,8 @@ fn main() {
                         let estimated_size = (oddsketch ^ peer_oddsketch).size() + 4;
                         info!("estimated difference {}", estimated_size);
 
-                        // If estimated difference is 0 then don't send
                         if estimated_size == 0 {
+                            // If est. diff. 0 then don't send
                             return None;
                         }
 
@@ -231,7 +242,7 @@ fn main() {
 
             // Heartbeat
             let mempool_shared_inner = mempool_shared.clone();
-            let interval = Interval::new_interval(Duration::from_millis(1000)).map_err(|e| {
+            let interval = Interval::new_interval(hb_duration).map_err(|e| {
                 error!("{}", e);
                 Error::from_raw_os_error(0)
             });

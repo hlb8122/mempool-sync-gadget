@@ -15,3 +15,16 @@ args:
         long: port
         help: Sets the peers port
         takes_value: true
+    - heartbeat:
+        short: h
+        long: heartbeat
+        help: Sets the heartbeat period
+        takes_value: true
+    - rpcusername:
+        long: rpcusername
+        help: Sets the Bitcoin RPC username
+        takes_value: true
+    - rpcpassword:
+        long: rpcpassword
+        help: Sets the Bitcoin RPC password
+        takes_value: true

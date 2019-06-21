@@ -18,10 +18,11 @@ Start Bitcoin's ZeroMQ publishers using
   
 or by adding
 
-```
+```properties
 zmqpubhashblock=tcp://127.0.0.1:28332
 zmqpubrawtx=tcp://127.0.0.1:28332
 ```
+
 to your `bitcoin.conf`.
 
 ### RPC
@@ -34,7 +35,7 @@ Once two nodes are running, both with RPC and ZMQ enabled.
 
 ### Machine A
 
-```
+```bash
 cargo build --release
 cd target/release
 mempool-sync
@@ -42,10 +43,10 @@ mempool-sync
 
 ### Machine B
 
-```
+```bash
 cargo build --release
 cd target/release
-mempool-sync -ip X.X.X.X -port Y
+mempool-sync -ip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy -heartbeat z
 ```
 
-where `X.X.X.X:Y` is the address of machine A 
+where `X.X.X.X:Y` is the address of machine A and `z` is the length of the heartbeat period in milliseconds.
