@@ -163,7 +163,9 @@ fn main() {
                         // Xor oddsketches
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
                         let oddsketch = mempool_guard.oddsketch();
-                        let estimated_size = (oddsketch ^ peer_oddsketch).size();
+
+                        // TODO: Better padding
+                        let estimated_size = (oddsketch ^ peer_oddsketch).size() + 4;
 
                         if estimated_size == 0 {
                             return None    

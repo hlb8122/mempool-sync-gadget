@@ -62,6 +62,9 @@ impl Decoder for MessageCodec {
     type Item = Message;
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        if src.len() < 1 {
+            return Ok(None)
+        }
         let mut buf = src.clone().into_buf();
 
         match buf.get_u8() {
