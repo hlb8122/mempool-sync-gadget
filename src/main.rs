@@ -83,7 +83,7 @@ fn main() {
                 // Add new transaction to mempool
                 let tx_raw: &[u8] = &multipart.get(1).unwrap();
                 let new_tx = Transaction::deserialize(tx_raw).unwrap();
-                info!("new tx {}", new_tx.txid());
+                info!("new tx {} from zmq", new_tx.txid());
                 mempool_shared_inner.lock().unwrap().insert(new_tx);
                 ok(())
             })
@@ -102,8 +102,7 @@ fn main() {
     let block_runner = block_sub
         .and_then(move |block_sub| {
             block_sub.stream().for_each(move |multipart| {
-                let block_hash: &[u8] = &multipart.get(1).unwrap();
-                info!("new block = {:x?}", block_hash);
+                info!("new block from zmq");
 
                 // Reset mempool
                 *mempool_shared_inner.lock().unwrap() = Mempool::default();
@@ -159,6 +158,8 @@ fn main() {
                             .cloned()
                             .collect();
 
+                        info!("minisketch decoded {} ids", filtered_ids.len());
+
                         // If empty then don't send
                         if filtered_ids.is_empty() {
                             None
@@ -175,6 +176,7 @@ fn main() {
 
                         // TODO: Better padding
                         let estimated_size = (oddsketch ^ peer_oddsketch).size() + 4;
+                        info!("estimated difference {}", estimated_size);
 
                         // If estimated difference is 0 then don't send
                         if estimated_size == 0 {
@@ -234,7 +236,7 @@ fn main() {
                 Error::from_raw_os_error(0)
             });
             let heartbeat = interval.map(move |_| {
-                info!("sending heartbeat oddsketch");
+                info!("sending heartbeat oddsketch to {}", peer_addr);
                 Message::Oddsketch(mempool_shared_inner.lock().unwrap().oddsketch())
             });
 
