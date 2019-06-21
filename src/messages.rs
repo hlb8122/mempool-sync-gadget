@@ -6,6 +6,7 @@ use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use minisketch_rs::Minisketch;
 use oddsketch::{Oddsketch, DEFAULT_LEN};
 use tokio::codec::{Decoder, Encoder};
+use log::info;
 
 use std::io::Error;
 
@@ -69,6 +70,7 @@ impl Decoder for MessageCodec {
 
         match buf.get_u8() {
             0 => {
+                info!("receiving oddsketch");
                 if buf.remaining() < DEFAULT_LEN {
                     return Ok(None);
                 }
@@ -80,6 +82,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::Oddsketch(Oddsketch::new(raw))))
             }
             1 => {
+                info!("receiving minisketch");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
@@ -98,6 +101,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::Minisketch(minisketch)))
             }
             2 => {
+                info!("receiving get txs");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
@@ -117,6 +121,7 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::GetTxs(ids)))
             }
             3 => {
+                info!("receiving txs");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }

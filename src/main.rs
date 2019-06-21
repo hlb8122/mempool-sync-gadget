@@ -103,7 +103,7 @@ fn main() {
         .and_then(move |block_sub| {
             block_sub.stream().for_each(move |multipart| {
                 let block_hash: &[u8] = &multipart.get(1).unwrap();
-                info!("new block = {:?}", block_hash);
+                info!("new block = {:x?}", block_hash);
 
                 // Reset mempool
                 *mempool_shared_inner.lock().unwrap() = Mempool::default();
