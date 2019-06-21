@@ -193,7 +193,7 @@ fn main() {
                         let oddsketch = mempool_guard.oddsketch();
 
                         // TODO: Better padding
-                        let estimated_size = (oddsketch ^ peer_oddsketch).size() + padding;
+                        let estimated_size = (oddsketch ^ peer_oddsketch).size();
                         info!("estimated difference {}", estimated_size);
 
                         if estimated_size == 0 {
@@ -203,7 +203,7 @@ fn main() {
 
                         // Slice minisketch to that length
                         let out_minisketch =
-                            mempool_guard.minisketch_slice(estimated_size as usize);
+                            mempool_guard.minisketch_slice(estimated_size as usize  + padding);
 
                         Some(Message::Minisketch(out_minisketch))
                     }
