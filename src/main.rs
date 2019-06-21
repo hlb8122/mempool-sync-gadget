@@ -35,7 +35,7 @@ use crate::{
 
 fn main() {
     // Logging
-    std::env::set_var("RUST_LOG", "info ./main");
+    std::env::set_var("RUST_LOG", "mempool_sync_gadget=INFO");
     pretty_env_logger::init_timed();
 
     info!("starting...");

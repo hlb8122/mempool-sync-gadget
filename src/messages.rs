@@ -62,7 +62,7 @@ impl Decoder for MessageCodec {
     type Item = Message;
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if src.len() < 1 {
+        if src.is_empty() {
             return Ok(None);
         }
         let mut buf = src.clone().into_buf();
@@ -138,7 +138,7 @@ impl Decoder for MessageCodec {
 
                     let mut raw_tx = vec![0; tx_len];
                     buf.copy_to_slice(&mut raw_tx);
-                    let tx = Transaction::deserialize(&mut raw_tx).unwrap();
+                    let tx = Transaction::deserialize(&raw_tx).unwrap();
                     vec_tx.push(tx);
                 }
                 src.advance(total_len);

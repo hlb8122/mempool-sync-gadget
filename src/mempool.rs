@@ -1,7 +1,7 @@
 use arrayref::array_ref;
 use bitcoin::Transaction;
 use minisketch_rs::Minisketch;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use oddsketch::Oddsketch;
 
