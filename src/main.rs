@@ -35,7 +35,7 @@ use crate::{
 
 fn main() {
     // Logging
-    std::env::set_var("RUST_LOG", "INFO");
+    std::env::set_var("RUST_LOG", "info ./main");
     pretty_env_logger::init_timed();
 
     info!("starting...");
@@ -101,7 +101,7 @@ fn main() {
         .build();
     let block_runner = block_sub
         .and_then(move |block_sub| {
-            block_sub.stream().for_each(move |multipart| {
+            block_sub.stream().for_each(move |_| {
                 info!("new block from zmq");
 
                 // Reset mempool
