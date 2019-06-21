@@ -148,19 +148,22 @@ fn main() {
                         peer_minisketch.merge(&minisketch).unwrap();
 
                         // Decode minisketch
-                        let mut decoded_ids = [0u64; 512]; // Overestimation here
+                        let mut decoded_ids = [0u64; 512];
                         peer_minisketch.decode(&mut decoded_ids).unwrap();
 
                         // Remove excess
-                        let filtered_ids: Vec<u64> =
-                            decoded_ids.iter().filter(|id| **id != 0).filter(|id| !mempool_guard.txs().contains_key(id)).cloned().collect();
+                        let filtered_ids: Vec<u64> = decoded_ids
+                            .iter()
+                            .filter(|id| **id != 0)
+                            .filter(|id| !mempool_guard.txs().contains_key(id))
+                            .cloned()
+                            .collect();
 
                         if filtered_ids.is_empty() {
                             None
                         } else {
                             Some(Message::GetTxs(filtered_ids))
                         }
-                        
                     }
                     Message::Oddsketch(peer_oddsketch) => {
                         info!("received oddsketch from {}", peer_addr);
@@ -172,8 +175,9 @@ fn main() {
                         // TODO: Better padding
                         let estimated_size = (oddsketch ^ peer_oddsketch).size() + 4;
 
+                        // If estimated difference is 0 then don't send
                         if estimated_size == 0 {
-                            return None    
+                            return None;
                         }
 
                         // Slice minisketch to that length
@@ -183,7 +187,11 @@ fn main() {
                         Some(Message::Minisketch(out_minisketch))
                     }
                     Message::GetTxs(vec_ids) => {
-                        info!("received transaction requests {}", peer_addr);
+                        info!(
+                            "received {} transaction requests {}",
+                            vec_ids.len(),
+                            peer_addr
+                        );
 
                         // Get txs from mempool
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
@@ -196,7 +204,7 @@ fn main() {
                         Some(Message::Txs(txs))
                     }
                     Message::Txs(vec_txs) => {
-                        info!("received transactions {}", peer_addr);
+                        info!("received {} transactions {}", vec_txs.len(), peer_addr);
 
                         // Add txs to mempool (and node mempool)
                         let mut mempool_guard = mempool_shared_inner.lock().unwrap();

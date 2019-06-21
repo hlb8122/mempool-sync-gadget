@@ -6,7 +6,6 @@ use bytes::{Buf, BufMut, BytesMut, IntoBuf};
 use minisketch_rs::Minisketch;
 use oddsketch::{Oddsketch, DEFAULT_LEN};
 use tokio::codec::{Decoder, Encoder};
-use log::info;
 
 use std::io::Error;
 
@@ -64,13 +63,12 @@ impl Decoder for MessageCodec {
     type Error = Error;
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         if src.len() < 1 {
-            return Ok(None)
+            return Ok(None);
         }
         let mut buf = src.clone().into_buf();
 
         match buf.get_u8() {
             0 => {
-                info!("receiving oddsketch");
                 if buf.remaining() < DEFAULT_LEN {
                     return Ok(None);
                 }
@@ -82,7 +80,6 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::Oddsketch(Oddsketch::new(raw))))
             }
             1 => {
-                info!("receiving minisketch");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
@@ -101,7 +98,6 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::Minisketch(minisketch)))
             }
             2 => {
-                info!("receiving get txs");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
@@ -121,7 +117,6 @@ impl Decoder for MessageCodec {
                 Ok(Some(Message::GetTxs(ids)))
             }
             3 => {
-                info!("receiving txs");
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
@@ -141,9 +136,9 @@ impl Decoder for MessageCodec {
 
                     total_len += 2 + tx_len;
 
-                    let mut raw_tx = Vec::with_capacity(tx_len);
+                    let mut raw_tx = vec![0; tx_len];
                     buf.copy_to_slice(&mut raw_tx);
-                    let tx = Transaction::deserialize(&raw_tx).unwrap();
+                    let tx = Transaction::deserialize(&mut raw_tx).unwrap();
                     vec_tx.push(tx);
                 }
                 src.advance(total_len);
