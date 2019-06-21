@@ -29,7 +29,6 @@ args:
         help: Sets the Bitcoin RPC password
         takes_value: true
     - padding:
-        short: p
         long: padding
         help: Sets the overestimation of minisketch size
         takes_value: true
