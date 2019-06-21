@@ -1,4 +1,4 @@
-name: mempool-sync
+name: mempool-sync-gadget
 version: "0.1.0"
 author: Harry Barber <hlbarber93@gmail.com>
 about: > 
@@ -27,4 +27,9 @@ args:
     - rpcpassword:
         long: rpcpassword
         help: Sets the Bitcoin RPC password
+        takes_value: true
+    - padding:
+        short: p
+        long: padding
+        help: Sets the overestimation of minisketch size
         takes_value: true

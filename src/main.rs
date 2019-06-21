@@ -58,6 +58,7 @@ fn main() {
         }
         None => None,
     };
+    let is_client = peer_opt.is_some();
 
     // Heartbeat duration
     let hb_duration = Duration::from_millis(
@@ -66,6 +67,12 @@ fn main() {
             .map(|hb| hb.parse().unwrap_or(2000))
             .unwrap_or(2000),
     );
+
+    // Overestimation of minisketch size
+    let padding = matches
+        .value_of("padding")
+        .map(|padding| padding.parse().unwrap_or(3))
+        .unwrap_or(3);
 
     // Mempool
     let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
@@ -184,9 +191,10 @@ fn main() {
                         // Xor oddsketches
                         let mempool_guard = mempool_shared_inner.lock().unwrap();
                         let oddsketch = mempool_guard.oddsketch();
+                        println!("{:?}", &oddsketch[..]);
 
                         // TODO: Better padding
-                        let estimated_size = (oddsketch ^ peer_oddsketch).size() + 4;
+                        let estimated_size = (oddsketch ^ peer_oddsketch).size() + padding;
                         info!("estimated difference {}", estimated_size);
 
                         if estimated_size == 0 {
@@ -246,9 +254,15 @@ fn main() {
                 error!("{}", e);
                 Error::from_raw_os_error(0)
             });
-            let heartbeat = interval.map(move |_| {
-                info!("sending heartbeat oddsketch to {}", peer_addr);
-                Message::Oddsketch(mempool_shared_inner.lock().unwrap().oddsketch())
+            let heartbeat = interval.filter_map(move |_| {
+                if is_client {
+                    info!("sending heartbeat oddsketch to {}", peer_addr);
+                    Some(Message::Oddsketch(
+                        mempool_shared_inner.lock().unwrap().oddsketch(),
+                    ))
+                } else {
+                    None
+                }
             });
 
             // Merge responses with heartbeat
