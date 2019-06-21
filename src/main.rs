@@ -62,7 +62,7 @@ fn main() {
 
     // Bitcoin client
     let json_client = Arc::new(JsonClient::new(
-        "http://127.0.0.1:8333".to_string(),
+        "http://127.0.0.1:8332".to_string(),
         "0hlb".to_string(),
         "heychris".to_string(),
     ));
@@ -159,6 +159,7 @@ fn main() {
                             .cloned()
                             .collect();
 
+                        // If empty then don't send
                         if filtered_ids.is_empty() {
                             None
                         } else {
