@@ -98,36 +98,47 @@ impl Decoder for MessageCodec {
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
+
                 let len = buf.get_u16_be() as usize;
                 if buf.remaining() < len * 8 {
                     return Ok(None);
                 }
+
                 let mut ids = Vec::with_capacity(len);
                 for _ in 0..len {
                     let id = buf.get_u64_be();
                     ids.push(id);
                 }
+
+                src.advance(3 + len * 8);
                 Ok(Some(Message::GetTxs(ids)))
             }
             3 => {
                 if buf.remaining() < 2 {
                     return Ok(None);
                 }
+
                 let vec_len = buf.get_u16_be() as usize;
                 let mut vec_tx = Vec::with_capacity(vec_len);
+                let mut total_len = 3;
                 for _ in 0..vec_len {
                     if buf.remaining() < 2 {
                         return Ok(None);
                     }
+
                     let tx_len = buf.get_u16_be() as usize;
                     if buf.remaining() < tx_len {
                         return Ok(None);
                     }
+
+                    total_len += 2 + tx_len;
+
                     let mut raw_tx = Vec::with_capacity(tx_len);
                     buf.copy_to_slice(&mut raw_tx);
                     let tx = Transaction::deserialize(&raw_tx).unwrap();
                     vec_tx.push(tx);
                 }
+                src.advance(total_len);
                 Ok(Some(Message::Txs(vec_tx)))
             }
             _ => Err(Error::from_raw_os_error(22)),
