@@ -19,7 +19,7 @@ use clap::App;
 use futures::{future, future::ok, lazy, sync::mpsc, Future, Stream};
 use futures_zmq::{prelude::*, Sub};
 use itertools::Itertools;
-use log::{error, info};
+use log::{error, info, warn};
 use mempool::Mempool;
 use serde_json::json;
 use tokio::{
@@ -170,7 +170,10 @@ fn main() {
 
                         // Decode minisketch
                         let mut decoded_ids = [0u64; 512];
-                        peer_minisketch.decode(&mut decoded_ids).unwrap();
+                        if peer_minisketch.decode(&mut decoded_ids).is_err() {
+                            warn!("minisketch decoding failed");
+                            return None
+                        }
 
                         // Find excess transaction and missing IDs
                         let (excess, missing): (Vec<Transaction>, Vec<u64>) = decoded_ids
