@@ -32,3 +32,6 @@ args:
         long: padding
         help: Sets the overestimation of minisketch size
         takes_value: true
+    - filelog:
+        long: filelog
+        help: Switch to file logging

@@ -27,6 +27,10 @@ impl Mempool {
         let tx_id = tx.txid();
         let short_id = u64::from_be_bytes(*array_ref![tx_id, 0, 8]);
 
+        if self.txs.contains_key(&short_id) {
+            return
+        }
+
         // Insert into mempool
         self.txs.insert(short_id, tx);
 

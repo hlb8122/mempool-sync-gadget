@@ -2,6 +2,7 @@
 extern crate clap;
 
 pub mod json_rpc_client;
+pub mod logging;
 pub mod mempool;
 pub mod messages;
 
@@ -35,18 +36,22 @@ use crate::{
 };
 
 fn main() {
+    // Load values from CLI
+    let yaml = load_yaml!("cli.yml");
+    let matches = App::from_yaml(yaml).get_matches();
+
     // Logging
     std::env::set_var("RUST_LOG", "mempool_sync_gadget=INFO");
-    pretty_env_logger::init_timed();
+    if matches.is_present("filelog") {
+        logging::init_file_logging();
+    } else {
+        logging::init_console_logging();
+    }
 
     info!("starting...");
 
     // New peer stream
     let (peer_send, peer_recv) = mpsc::channel::<TcpStream>(1024);
-
-    // Load values from CLI
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
 
     // Add peer
     let peer_opt = match matches.value_of("ip") {
@@ -231,6 +236,7 @@ fn main() {
                         if missing.is_empty() {
                             None
                         } else {
+                            info!("sending gettxs to {}", peer_addr);
                             Some(Message::GetTxs(missing))
                         }
                     }
@@ -254,11 +260,12 @@ fn main() {
                         let out_minisketch =
                             mempool_guard.minisketch_slice(estimated_size as usize + padding);
 
+                        info!("sending minisketch to {}", peer_addr);
                         Some(Message::Minisketch(out_minisketch))
                     }
                     Message::GetTxs(vec_ids) => {
                         info!(
-                            "received {} transaction requests {}",
+                            "received {} transaction requests from {}",
                             vec_ids.len(),
                             peer_addr
                         );
@@ -271,6 +278,7 @@ fn main() {
                             .cloned()
                             .collect();
 
+                        info!("sending txs to {}", peer_addr);
                         Some(Message::Txs(txs))
                     }
                     Message::Txs(vec_txs) => {
