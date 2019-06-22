@@ -9,7 +9,7 @@ use futures::{
     future::{join_all, ok},
     Future,
 };
-use log::error;
+use log::{info, error};
 use minisketch_rs::Minisketch;
 use oddsketch::Oddsketch;
 use serde_json::json;
@@ -99,15 +99,16 @@ pub fn populate_via_rpc(
     json_client: Arc<JsonClient>,
     mempool: Arc<Mutex<Mempool>>,
 ) -> impl Future<Item = (), Error = ()> {
-    let req = json_client.build_request("getrawmempool".to_string(), vec![]);
+    let req = json_client.build_request("getrawmempool".to_string(), vec![json!(false)]);
     json_client
         .send_request(&req)
         .and_then(|resp| resp.result::<Vec<String>>())
         .and_then(move |tx_ids| {
             // Get txs from tx ids
             let txs_fut = join_all(tx_ids.into_iter().map(move |tx_id| {
+                info!("fetching {} from rpc", tx_id);
                 let tx_req =
-                    json_client.build_request("getrawtransaction".to_string(), vec![json!(tx_id)]);
+                    json_client.build_request("getrawtransaction".to_string(), vec![json!(tx_id), json!(false)]);
                 json_client
                     .send_request(&tx_req)
                     .and_then(|resp| resp.result::<String>())
