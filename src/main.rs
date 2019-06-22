@@ -55,14 +55,14 @@ fn main() {
     let (peer_send, peer_recv) = mpsc::channel::<TcpStream>(1024);
 
     // Add peer
-    let peer_opt = match matches.value_of("ip") {
-        Some(ip) => {
+    let peer_opt = match matches.value_of("peerip") {
+        Some(peer_ip) => {
             let port: u16 = matches
                 .value_of("port")
                 .map(|hb| hb.parse().unwrap_or(8885))
                 .unwrap_or(8885);
             Some(
-                TcpStream::connect(&format!("{}:{}", ip, port).parse().unwrap())
+                TcpStream::connect(&format!("{}:{}", peer_ip, port).parse().unwrap())
                     .map_err(|e| error!("{}", e)),
             )
         }
