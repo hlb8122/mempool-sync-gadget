@@ -1,9 +1,20 @@
-use arrayref::array_ref;
-use bitcoin::Transaction;
-use minisketch_rs::Minisketch;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
+use arrayref::array_ref;
+use bitcoin::{util::psbt::serialize::Deserialize, Transaction};
+use futures::{
+    future::{join_all, ok},
+    Future,
+};
+use log::error;
+use minisketch_rs::Minisketch;
 use oddsketch::Oddsketch;
+use serde_json::json;
+
+use crate::json_rpc_client::JsonClient;
 
 pub struct Mempool {
     minisketch: Minisketch,
@@ -28,7 +39,7 @@ impl Mempool {
         let short_id = u64::from_be_bytes(*array_ref![tx_id, 0, 8]);
 
         if self.txs.contains_key(&short_id) {
-            return
+            return;
         }
 
         // Insert into mempool
@@ -82,4 +93,38 @@ impl Mempool {
             self.insert(tx);
         }
     }
+}
+
+pub fn populate_via_rpc(
+    json_client: Arc<JsonClient>,
+    mempool: Arc<Mutex<Mempool>>,
+) -> impl Future<Item = (), Error = ()> {
+    let req = json_client.build_request("getrawmempool".to_string(), vec![]);
+    json_client
+        .send_request(&req)
+        .and_then(|resp| resp.result::<Vec<String>>())
+        .and_then(move |tx_ids| {
+            // Get txs from tx ids
+            let txs_fut = join_all(tx_ids.into_iter().map(move |tx_id| {
+                let tx_req =
+                    json_client.build_request("getrawtransaction".to_string(), vec![json!(tx_id)]);
+                json_client
+                    .send_request(&tx_req)
+                    .and_then(|resp| resp.result::<String>())
+            }));
+
+            // Reset then add txs to gadget mempool
+            let mempool_shared_inner = mempool.clone();
+            txs_fut.and_then(move |txs| {
+                let mut mempool_guard = mempool_shared_inner.lock().unwrap();
+                *mempool_guard = Mempool::default();
+
+                txs.iter().for_each(|raw_tx| {
+                    mempool_guard
+                        .insert(Transaction::deserialize(&hex::decode(raw_tx).unwrap()).unwrap());
+                });
+                ok(())
+            })
+        })
+        .map_err(|e| error!("{:?}", e))
 }

@@ -80,15 +80,21 @@ fn main() {
         .map(|padding| padding.parse().unwrap_or(3))
         .unwrap_or(3);
 
-    // Mempool
-    let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
-
     // Bitcoin client
     let json_client = Arc::new(JsonClient::new(
         "http://127.0.0.1:8332".to_string(),
         matches.value_of("rpcusername").unwrap_or("").to_string(),
         matches.value_of("rpcpassword").unwrap_or("").to_string(),
     ));
+
+    // Mempool
+    let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
+
+    // Populate mempool
+    info!("populating gadget mempool via rpc...");
+    mempool::populate_via_rpc(json_client.clone(), mempool_shared.clone())
+        .wait()
+        .unwrap();
 
     // ZeroMQ
     let context = Arc::new(zmq::Context::new());
@@ -135,40 +141,10 @@ fn main() {
                     info!("new block {} from zmq", block_hash);
 
                     // Get tx ids from node mempool
-                    let req = json_client_inner.build_request("getrawmempool".to_string(), vec![]);
                     let mempool_shared_inner = mempool_shared_inner.clone();
                     let json_client_inner = json_client_inner.clone();
-                    json_client_inner
-                        .send_request(&req)
-                        .and_then(|resp| resp.result::<Vec<String>>())
-                        .and_then(move |tx_ids| {
-                            // Get txs from tx ids
-                            let txs_fut = future::join_all(tx_ids.into_iter().map(move |tx_id| {
-                                let tx_req = json_client_inner.build_request(
-                                    "getrawtransaction".to_string(),
-                                    vec![json!(tx_id)],
-                                );
-                                json_client_inner
-                                    .send_request(&tx_req)
-                                    .and_then(|resp| resp.result::<String>())
-                            }));
 
-                            // Reset then add txs to gadget mempool
-                            let mempool_shared_inner = mempool_shared_inner.clone();
-                            txs_fut.and_then(move |txs| {
-                                let mut mempool_guard = mempool_shared_inner.lock().unwrap();
-                                *mempool_guard = Mempool::default();
-
-                                txs.iter().for_each(|raw_tx| {
-                                    mempool_guard.insert(
-                                        Transaction::deserialize(&hex::decode(raw_tx).unwrap())
-                                            .unwrap(),
-                                    );
-                                });
-                                ok(())
-                            })
-                        })
-                        .map_err(|e| error!("{:?}", e))
+                    mempool::populate_via_rpc(json_client_inner, mempool_shared_inner)
                 })
         });
 
