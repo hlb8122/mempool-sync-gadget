@@ -90,12 +90,6 @@ fn main() {
     // Mempool
     let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
 
-    // Populate mempool
-    info!("populating gadget mempool via rpc...");
-    mempool::populate_via_rpc(json_client.clone(), mempool_shared.clone())
-        .wait()
-        .unwrap();
-
     // ZeroMQ
     let context = Arc::new(zmq::Context::new());
 
@@ -150,6 +144,7 @@ fn main() {
 
     // Server
     let mempool_shared_inner = mempool_shared.clone();
+    let json_client_inner = json_client.clone();
     let server = TcpListener::bind(&"0.0.0.0:8885".parse().unwrap())
         .unwrap()
         .incoming()
@@ -167,8 +162,9 @@ fn main() {
             let (send_stream, received_stream) = framed_sock.split();
 
             // Inner variables
-            let json_client_inner = json_client.clone();
+            let json_client_inner = json_client_inner.clone();
             let mempool_shared_inner = mempool_shared_inner.clone();
+            let mempool_shared_outer = mempool_shared_inner.clone();
 
             // Response stream
             let responses = received_stream.filter_map(move |msg| {
@@ -281,7 +277,7 @@ fn main() {
             });
 
             // Heartbeat
-            let mempool_shared_inner = mempool_shared.clone();
+            let mempool_shared_inner = mempool_shared_outer.clone();
             let interval = Interval::new_interval(hb_duration).map_err(|e| {
                 error!("{}", e);
                 Error::from_raw_os_error(0)
@@ -313,17 +309,23 @@ fn main() {
         });
 
     // Spawn event loop
-    tokio::run(lazy(|| {
-        tokio::spawn(tx_runner);
-        tokio::spawn(block_runner);
-        tokio::spawn(server);
-        tokio::spawn(match peer_opt {
-            Some(peer) => future::Either::A(
-                peer.and_then(|socket| peer_send.send(socket).map_err(|e| error!("{}", e)))
-                    .and_then(|_| ok(())),
-            ),
-            None => future::Either::B(ok(())),
-        });
-        ok(())
+    tokio::run(lazy(move || {
+        // Populate mempool
+        info!("populating gadget mempool via rpc...");
+        mempool::populate_via_rpc(json_client, mempool_shared)
+        .and_then(|_| {
+            // Spawn ZMQ runners
+            tokio::spawn(tx_runner);
+            tokio::spawn(block_runner);
+            tokio::spawn(server);
+            tokio::spawn(match peer_opt {
+                Some(peer) => future::Either::A(
+                    peer.and_then(|socket| peer_send.send(socket).map_err(|e| error!("{}", e)))
+                        .and_then(|_| ok(())),
+                ),
+                None => future::Either::B(ok(())),
+            });
+            ok(())
+        })
     }));
 }
