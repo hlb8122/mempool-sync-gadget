@@ -6,6 +6,7 @@ Using a combination of ZeroMQ and RPC the gadget communicates with another insta
 
 ```bash
 sudo apt install clang
+sudo apt install libssl-dev
 ```
 
 The `minisketch-rs` library seems to try build using a Linux only header file. As a result Linux is required to build.

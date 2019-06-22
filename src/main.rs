@@ -2,6 +2,7 @@
 extern crate clap;
 
 pub mod json_rpc_client;
+pub mod logging;
 pub mod mempool;
 pub mod messages;
 
@@ -16,9 +17,10 @@ use bitcoin::{
     Transaction,
 };
 use clap::App;
-use futures::{future::ok, future::Either, lazy, sync::mpsc, Future, Stream};
+use futures::{future, future::ok, lazy, sync::mpsc, Future, Stream};
 use futures_zmq::{prelude::*, Sub};
-use log::{error, info};
+use itertools::Itertools;
+use log::{error, info, warn};
 use mempool::Mempool;
 use serde_json::json;
 use tokio::{
@@ -34,18 +36,22 @@ use crate::{
 };
 
 fn main() {
+    // Load values from CLI
+    let yaml = load_yaml!("cli.yml");
+    let matches = App::from_yaml(yaml).get_matches();
+
     // Logging
     std::env::set_var("RUST_LOG", "mempool_sync_gadget=INFO");
-    pretty_env_logger::init_timed();
+    if matches.is_present("filelog") {
+        logging::init_file_logging();
+    } else {
+        logging::init_console_logging();
+    }
 
     info!("starting...");
 
     // New peer stream
     let (peer_send, peer_recv) = mpsc::channel::<TcpStream>(1024);
-
-    // Load values from CLI
-    let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
 
     // Add peer
     let peer_opt = match matches.value_of("ip") {
@@ -74,15 +80,15 @@ fn main() {
         .map(|padding| padding.parse().unwrap_or(3))
         .unwrap_or(3);
 
-    // Mempool
-    let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
-
     // Bitcoin client
     let json_client = Arc::new(JsonClient::new(
         "http://127.0.0.1:8332".to_string(),
         matches.value_of("rpcusername").unwrap_or("").to_string(),
         matches.value_of("rpcpassword").unwrap_or("").to_string(),
     ));
+
+    // Mempool
+    let mempool_shared = Arc::new(Mutex::new(Mempool::default()));
 
     // ZeroMQ
     let context = Arc::new(zmq::Context::new());
@@ -112,30 +118,33 @@ fn main() {
 
     // Block subscription
     let mempool_shared_inner = mempool_shared.clone();
+    let json_client_inner = json_client.clone();
     let block_sub = Sub::builder(context.clone())
         .connect("tcp://127.0.0.1:28332")
         .filter(b"hashblock")
         .build();
     let block_runner = block_sub
+        .map_err(|e| error!("{:?}", e))
         .and_then(move |block_sub| {
-            block_sub.stream().for_each(move |_| {
-                info!("new block from zmq");
+            block_sub
+                .stream()
+                .map_err(|e| error!("{:?}", e))
+                .for_each(move |multipart| {
+                    // Reset gadget mempool
+                    let block_hash = multipart.get(1).unwrap().as_str().unwrap();
+                    info!("new block {} from zmq", block_hash);
 
-                // Reset gadget mempool
-                *mempool_shared_inner.lock().unwrap() = Mempool::default();
+                    // Get tx ids from node mempool
+                    let mempool_shared_inner = mempool_shared_inner.clone();
+                    let json_client_inner = json_client_inner.clone();
 
-                // TODO: Repopulate via RPC
-
-                ok(())
-            })
-        })
-        .map(|_| ())
-        .map_err(|e| {
-            error!("block subscription error = {}", e);
+                    mempool::populate_via_rpc(json_client_inner, mempool_shared_inner)
+                })
         });
 
     // Server
     let mempool_shared_inner = mempool_shared.clone();
+    let json_client_inner = json_client.clone();
     let server = TcpListener::bind(&"0.0.0.0:8885".parse().unwrap())
         .unwrap()
         .incoming()
@@ -145,13 +154,17 @@ fn main() {
             let peer_addr = socket.peer_addr().unwrap();
             info!("new peer {}", peer_addr);
 
+            // Channel for excess txs
+            let (excess_tx_send, excess_tx_recv) = mpsc::channel::<Vec<Transaction>>(128);
+
             // Frame socket
             let framed_sock = Framed::new(socket, MessageCodec);
             let (send_stream, received_stream) = framed_sock.split();
 
             // Inner variables
-            let json_client_inner = json_client.clone();
+            let json_client_inner = json_client_inner.clone();
             let mempool_shared_inner = mempool_shared_inner.clone();
+            let mempool_shared_outer = mempool_shared_inner.clone();
 
             // Response stream
             let responses = received_stream.filter_map(move |msg| {
@@ -166,23 +179,37 @@ fn main() {
 
                         // Decode minisketch
                         let mut decoded_ids = [0u64; 512];
-                        peer_minisketch.decode(&mut decoded_ids).unwrap();
+                        if peer_minisketch.decode(&mut decoded_ids).is_err() {
+                            warn!("minisketch decoding failed");
+                            return None;
+                        }
 
-                        // Remove excess
-                        let filtered_ids: Vec<u64> = decoded_ids
+                        // Find excess transaction and missing IDs
+                        let (excess, missing): (Vec<Transaction>, Vec<u64>) = decoded_ids
                             .iter()
-                            .filter(|id| **id != 0)
-                            .filter(|id| !mempool_guard.txs().contains_key(id))
-                            .cloned()
-                            .collect();
+                            .filter(|id| **id != 0) // Remove excess
+                            .partition_map(|id| match mempool_guard.txs().get(id) {
+                                Some(tx) => itertools::Either::Left(tx.clone()),
+                                None => itertools::Either::Right(*id),
+                            });
 
-                        info!("minisketch decoded {} ids", filtered_ids.len());
+                        info!("{} excess txs, {} missing ids", excess.len(), missing.len());
 
-                        if filtered_ids.is_empty() {
-                            // If empty, don't send
+                        if !excess.is_empty() {
+                            tokio::spawn(
+                                excess_tx_send
+                                    .clone()
+                                    .send(excess)
+                                    .map_err(|_| ())
+                                    .and_then(|_| ok(())),
+                            );
+                        }
+
+                        if missing.is_empty() {
                             None
                         } else {
-                            Some(Message::GetTxs(filtered_ids))
+                            info!("sending gettxs to {}", peer_addr);
+                            Some(Message::GetTxs(missing))
                         }
                     }
                     Message::Oddsketch(peer_oddsketch) => {
@@ -203,13 +230,14 @@ fn main() {
 
                         // Slice minisketch to that length
                         let out_minisketch =
-                            mempool_guard.minisketch_slice(estimated_size as usize  + padding);
+                            mempool_guard.minisketch_slice(estimated_size as usize + padding);
 
+                        info!("sending minisketch to {}", peer_addr);
                         Some(Message::Minisketch(out_minisketch))
                     }
                     Message::GetTxs(vec_ids) => {
                         info!(
-                            "received {} transaction requests {}",
+                            "received {} transaction requests from {}",
                             vec_ids.len(),
                             peer_addr
                         );
@@ -222,6 +250,7 @@ fn main() {
                             .cloned()
                             .collect();
 
+                        info!("sending txs to {}", peer_addr);
                         Some(Message::Txs(txs))
                     }
                     Message::Txs(vec_txs) => {
@@ -248,7 +277,7 @@ fn main() {
             });
 
             // Heartbeat
-            let mempool_shared_inner = mempool_shared.clone();
+            let mempool_shared_inner = mempool_shared_outer.clone();
             let interval = Interval::new_interval(hb_duration).map_err(|e| {
                 error!("{}", e);
                 Error::from_raw_os_error(0)
@@ -265,8 +294,11 @@ fn main() {
                 }
             });
 
-            // Merge responses with heartbeat
-            let out = responses.select(heartbeat);
+            // Merge adjoin heartbeat and excess tx stream
+            let excess_tx_recv = excess_tx_recv
+                .map(Message::Txs)
+                .map_err(|_| Error::from_raw_os_error(0));
+            let out = responses.select(heartbeat).select(excess_tx_recv);
 
             // Send
             let send = send_stream.send_all(out).map(|_| ()).or_else(move |e| {
@@ -277,17 +309,23 @@ fn main() {
         });
 
     // Spawn event loop
-    tokio::run(lazy(|| {
-        tokio::spawn(tx_runner);
-        tokio::spawn(block_runner);
-        tokio::spawn(server);
-        tokio::spawn(match peer_opt {
-            Some(peer) => Either::A(
-                peer.and_then(|socket| peer_send.send(socket).map_err(|e| error!("{}", e)))
-                    .and_then(|_| ok(())),
-            ),
-            None => Either::B(ok(())),
-        });
-        ok(())
+    tokio::run(lazy(move || {
+        // Populate mempool
+        info!("populating gadget mempool via rpc...");
+        mempool::populate_via_rpc(json_client, mempool_shared)
+        .and_then(|_| {
+            // Spawn ZMQ runners
+            tokio::spawn(tx_runner);
+            tokio::spawn(block_runner);
+            tokio::spawn(server);
+            tokio::spawn(match peer_opt {
+                Some(peer) => future::Either::A(
+                    peer.and_then(|socket| peer_send.send(socket).map_err(|e| error!("{}", e)))
+                        .and_then(|_| ok(())),
+                ),
+                None => future::Either::B(ok(())),
+            });
+            ok(())
+        })
     }));
 }
