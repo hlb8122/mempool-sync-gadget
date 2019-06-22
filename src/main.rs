@@ -113,26 +113,58 @@ fn main() {
 
     // Block subscription
     let mempool_shared_inner = mempool_shared.clone();
+    let json_client_inner = json_client.clone();
     let block_sub = Sub::builder(context.clone())
         .connect("tcp://127.0.0.1:28332")
         .filter(b"hashblock")
         .build();
     let block_runner = block_sub
+        .map_err(|e| error!("{:?}", e))
         .and_then(move |block_sub| {
-            block_sub.stream().for_each(move |_| {
-                info!("new block from zmq");
+            block_sub
+                .stream()
+                .map_err(|e| error!("{:?}", e))
+                .for_each(move |multipart| {
+                    // Reset gadget mempool
+                    let block_hash = multipart.get(1).unwrap().as_str().unwrap();
+                    info!("new block {} from zmq", block_hash);
 
-                // Reset gadget mempool
-                *mempool_shared_inner.lock().unwrap() = Mempool::default();
+                    // Get tx ids from node mempool
+                    let req = json_client_inner.build_request("getrawmempool".to_string(), vec![]);
+                    let mempool_shared_inner = mempool_shared_inner.clone();
+                    let json_client_inner = json_client_inner.clone();
+                    json_client_inner
+                        .send_request(&req)
+                        .and_then(|resp| resp.result::<Vec<String>>())
+                        .and_then(move |tx_ids| {
+                            // Get txs from tx ids
+                            let txs_fut = future::join_all(tx_ids.into_iter().map(move |tx_id| {
+                                let tx_req = json_client_inner.build_request(
+                                    "getrawtransaction".to_string(),
+                                    vec![json!(tx_id)],
+                                );
+                                json_client_inner
+                                    .send_request(&tx_req)
+                                    .and_then(|resp| resp.result::<String>())
+                            }));
 
-                // TODO: Repopulate via RPC
+                            // Reset then add txs to gadget mempool
+                            let mempool_shared_inner = mempool_shared_inner.clone();
+                            txs_fut.and_then(move |txs| {
+                                let mut mempool_guard = mempool_shared_inner.lock().unwrap();
+                                *mempool_guard = Mempool::default();
 
-                ok(())
-            })
-        })
-        .map(|_| ())
-        .map_err(|e| {
-            error!("block subscription error = {}", e);
+                                txs.iter().for_each(|raw_tx| {
+                                    mempool_guard.insert(
+                                        Transaction::deserialize(&hex::decode(raw_tx).unwrap())
+                                            .unwrap(),
+                                    );
+                                });
+                                ok(())
+                            })
+                        })
+                        .map_err(|e| error!("{:?}", e))
+                })
         });
 
     // Server
@@ -172,7 +204,7 @@ fn main() {
                         let mut decoded_ids = [0u64; 512];
                         if peer_minisketch.decode(&mut decoded_ids).is_err() {
                             warn!("minisketch decoding failed");
-                            return None
+                            return None;
                         }
 
                         // Find excess transaction and missing IDs

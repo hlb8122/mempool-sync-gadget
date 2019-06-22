@@ -37,6 +37,19 @@ impl Mempool {
         self.oddsketch.insert(short_id);
     }
 
+    pub fn remove(&mut self, tx_id: Vec<u8>) {
+        let short_id = u64::from_be_bytes(*array_ref![tx_id, 0, 8]);
+
+        // Remove from mempool
+        self.txs.remove(&short_id);
+
+        // Update Minisketch
+        self.minisketch.add(short_id);
+
+        // Update Oddsketch
+        self.oddsketch.insert(short_id);
+    }
+
     pub fn txs(&self) -> &HashMap<u64, Transaction> {
         &self.txs
     }
