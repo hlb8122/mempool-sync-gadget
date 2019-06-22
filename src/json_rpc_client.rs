@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use futures::Future;
 use reqwest;
@@ -36,13 +36,12 @@ impl Response {
 }
 
 // A handle to a remote JSONRPC server
-#[derive(Clone)]
 pub struct JsonClient {
     endpoint: String,
     username: String,
     password: String,
     client: reqwest::r#async::Client,
-    nonce: Arc<Mutex<u64>>,
+    nonce: Mutex<u64>,
 }
 
 impl JsonClient {
@@ -52,7 +51,7 @@ impl JsonClient {
             username,
             password,
             client: reqwest::r#async::Client::new(),
-            nonce: Arc::new(Mutex::new(0)), // TODO: Bit heavy handed, use atomic uint
+            nonce: Mutex::new(0), // TODO: Bit heavy handed, use atomic uint
         }
     }
 
