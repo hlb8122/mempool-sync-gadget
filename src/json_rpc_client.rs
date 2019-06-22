@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 use futures::Future;
 use reqwest;
@@ -41,7 +41,7 @@ pub struct JsonClient {
     username: String,
     password: String,
     client: reqwest::r#async::Client,
-    nonce: Mutex<u64>,
+    nonce: AtomicUsize,
 }
 
 impl JsonClient {
@@ -51,7 +51,7 @@ impl JsonClient {
             username,
             password,
             client: reqwest::r#async::Client::new(),
-            nonce: Mutex::new(0), // TODO: Bit heavy handed, use atomic uint
+            nonce: AtomicUsize::new(0), 
         }
     }
 
@@ -89,20 +89,12 @@ impl JsonClient {
 
     // Builds a request
     pub fn build_request(&self, method: String, params: Vec<Value>) -> Request {
-        let mut nonce = self.nonce.lock().unwrap();
-        *nonce += 1;
+        self.nonce.fetch_add(1, SeqCst);
         Request {
             method,
             params,
-            id: json!(*nonce),
+            id: json!(self.nonce.load(SeqCst)),
         }
-    }
-}
-
-impl JsonClient {
-    // Accessor for the last-used nonce
-    pub fn last_nonce(&self) -> u64 {
-        *self.nonce.lock().unwrap()
     }
 }
 
