@@ -6,8 +6,12 @@ about: >
   another instance of itself and allows two nodes mempools to be synced 
   with near minimal bandwidth in 2 round trips.
 args:
-    - ip:
-        long: ip
+    - nodeip:
+        long: nodeip
+        help: Sets the nodes IP address
+        takes_value: true
+    - peerip:
+        long: peerip
         help: Sets the peers IP address
         takes_value: true
     - port:

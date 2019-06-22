@@ -51,7 +51,7 @@ impl JsonClient {
             username,
             password,
             client: reqwest::r#async::Client::new(),
-            nonce: AtomicUsize::new(0), 
+            nonce: AtomicUsize::new(0),
         }
     }
 

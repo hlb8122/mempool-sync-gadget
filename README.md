@@ -39,7 +39,7 @@ Once two nodes are running, both with RPC and ZMQ enabled.
 ```bash
 cargo build --release
 cd target/release
-mempool-sync
+mempool-sync-gadget [ARGS]
 ```
 
 ### Machine B
@@ -47,7 +47,7 @@ mempool-sync
 ```bash
 cargo build --release
 cd target/release
-mempool-sync -ip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy -heartbeat z
+mempool-sync-gadget -peerip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy -heartbeat z
 ```
 
 where `X.X.X.X:Y` is the address of machine A and `z` is the length of the heartbeat period in milliseconds.

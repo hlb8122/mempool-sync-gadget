@@ -39,6 +39,7 @@ fn main() {
     // Load values from CLI
     let yaml = load_yaml!("cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
+    let node_ip = matches.value_of("nodeip").unwrap_or("127.0.0.1");
 
     // Logging
     std::env::set_var("RUST_LOG", "mempool_sync_gadget=INFO");
@@ -56,7 +57,10 @@ fn main() {
     // Add peer
     let peer_opt = match matches.value_of("ip") {
         Some(ip) => {
-            let port: u16 = matches.value_of("port").unwrap_or("8885").parse().unwrap();
+            let port: u16 = matches
+                .value_of("port")
+                .map(|hb| hb.parse().unwrap_or(8885))
+                .unwrap_or(8885);
             Some(
                 TcpStream::connect(&format!("{}:{}", ip, port).parse().unwrap())
                     .map_err(|e| error!("{}", e)),
@@ -82,7 +86,7 @@ fn main() {
 
     // Bitcoin client
     let json_client = Arc::new(JsonClient::new(
-        "http://127.0.0.1:8332".to_string(),
+        format!("http://{}:8332", node_ip),
         matches.value_of("rpcusername").unwrap_or("").to_string(),
         matches.value_of("rpcpassword").unwrap_or("").to_string(),
     ));
@@ -95,52 +99,50 @@ fn main() {
 
     // Transaction subscription
     let mempool_shared_inner = mempool_shared.clone();
-    let tx_sub = Sub::builder(context.clone())
-        .connect("tcp://127.0.0.1:28332")
-        .filter(b"rawtx")
-        .build();
-    let tx_runner = tx_sub
-        .and_then(move |tx_sub| {
-            // For each transaction received via ZMQ
-            tx_sub.stream().for_each(move |multipart| {
-                // Add new transaction to gadget mempool
-                let tx_raw: &[u8] = &multipart.get(1).unwrap();
-                let new_tx = Transaction::deserialize(tx_raw).unwrap();
-                info!("new tx {} from zmq", new_tx.txid());
-                mempool_shared_inner.lock().unwrap().insert(new_tx);
-                ok(())
-            })
-        })
-        .map(|_| ())
-        .map_err(|e| {
-            error!("tx subscription error = {}", e);
-        });
-
-    // Block subscription
-    let mempool_shared_inner = mempool_shared.clone();
     let json_client_inner = json_client.clone();
-    let block_sub = Sub::builder(context.clone())
-        .connect("tcp://127.0.0.1:28332")
-        .filter(b"hashblock")
+    let sub = Sub::builder(context.clone())
+        .connect(&format!("tcp://{}:28332", node_ip))
+        .filter(b"")
         .build();
-    let block_runner = block_sub
-        .map_err(|e| error!("{:?}", e))
-        .and_then(move |block_sub| {
-            block_sub
-                .stream()
-                .map_err(|e| error!("{:?}", e))
-                .for_each(move |multipart| {
-                    // Reset gadget mempool
-                    let block_hash = multipart.get(1).unwrap().as_str().unwrap();
-                    info!("new block {} from zmq", block_hash);
-
-                    // Get tx ids from node mempool
-                    let mempool_shared_inner = mempool_shared_inner.clone();
-                    let json_client_inner = json_client_inner.clone();
-
-                    mempool::populate_via_rpc(json_client_inner, mempool_shared_inner)
+    let runner = sub
+        .map_err(|e| {
+            error!("zmq subscriptions error = {}", e);
+        })
+        .and_then(move |sub| {
+            // For each message received via ZMQ
+            sub.stream()
+                .map_err(|e| {
+                    error!("zmq stream error = {}", e);
                 })
-        });
+                .for_each(move |multipart| {
+                    match &**multipart.get(0).unwrap() {
+                        b"rawtx" => {
+                            // Add new transaction to gadget mempool
+                            let tx_raw: &[u8] = &multipart.get(1).unwrap();
+                            let new_tx = Transaction::deserialize(tx_raw).unwrap();
+                            info!("new tx {} from zmq", new_tx.txid());
+                            mempool_shared_inner.lock().unwrap().insert(new_tx);
+                            future::Either::A(ok(()))
+                        }
+                        b"hashblock" => {
+                            // Reset gadget mempool
+                            info!("new block announcement from zmq");
+
+                            // Get tx ids from node mempool
+                            let mempool_shared_inner = mempool_shared_inner.clone();
+                            let json_client_inner = json_client_inner.clone();
+
+                            // TODO: Perhaps add a delay here while node mempool updating?
+                            future::Either::B(mempool::populate_via_rpc(
+                                json_client_inner,
+                                mempool_shared_inner,
+                            ))
+                        }
+                        _ => unreachable!(),
+                    }
+                })
+        })
+        .map(|_| ());
 
     // Server
     let mempool_shared_inner = mempool_shared.clone();
@@ -312,11 +314,11 @@ fn main() {
     tokio::run(lazy(move || {
         // Populate mempool
         info!("populating gadget mempool via rpc...");
-        mempool::populate_via_rpc(json_client, mempool_shared)
-        .and_then(|_| {
-            // Spawn ZMQ runners
-            tokio::spawn(tx_runner);
-            tokio::spawn(block_runner);
+        mempool::populate_via_rpc(json_client, mempool_shared).and_then(|_| {
+            // Spawn ZMQ runner
+            tokio::spawn(runner);
+
+            // Spawn gadget server
             tokio::spawn(server);
             tokio::spawn(match peer_opt {
                 Some(peer) => future::Either::A(
