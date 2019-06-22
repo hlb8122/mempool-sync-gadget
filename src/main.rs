@@ -16,8 +16,9 @@ use bitcoin::{
     Transaction,
 };
 use clap::App;
-use futures::{future::ok, future::Either, lazy, sync::mpsc, Future, Stream};
+use futures::{future, future::ok, lazy, sync::mpsc, Future, Stream};
 use futures_zmq::{prelude::*, Sub};
+use itertools::Itertools;
 use log::{error, info};
 use mempool::Mempool;
 use serde_json::json;
@@ -145,6 +146,9 @@ fn main() {
             let peer_addr = socket.peer_addr().unwrap();
             info!("new peer {}", peer_addr);
 
+            // Channel for excess txs
+            let (excess_tx_send, excess_tx_recv) = mpsc::channel::<Vec<Transaction>>(128);
+
             // Frame socket
             let framed_sock = Framed::new(socket, MessageCodec);
             let (send_stream, received_stream) = framed_sock.split();
@@ -168,21 +172,31 @@ fn main() {
                         let mut decoded_ids = [0u64; 512];
                         peer_minisketch.decode(&mut decoded_ids).unwrap();
 
-                        // Remove excess
-                        let filtered_ids: Vec<u64> = decoded_ids
+                        // Find excess transaction and missing IDs
+                        let (excess, missing): (Vec<Transaction>, Vec<u64>) = decoded_ids
                             .iter()
-                            .filter(|id| **id != 0)
-                            .filter(|id| !mempool_guard.txs().contains_key(id))
-                            .cloned()
-                            .collect();
+                            .filter(|id| **id != 0) // Remove excess
+                            .partition_map(|id| match mempool_guard.txs().get(id) {
+                                Some(tx) => itertools::Either::Left(tx.clone()),
+                                None => itertools::Either::Right(*id),
+                            });
 
-                        info!("minisketch decoded {} ids", filtered_ids.len());
+                        info!("{} excess txs, {} missing ids", excess.len(), missing.len());
 
-                        if filtered_ids.is_empty() {
-                            // If empty, don't send
+                        if !excess.is_empty() {
+                            tokio::spawn(
+                                excess_tx_send
+                                    .clone()
+                                    .send(excess)
+                                    .map_err(|_| ())
+                                    .and_then(|_| ok(())),
+                            );
+                        }
+
+                        if missing.is_empty() {
                             None
                         } else {
-                            Some(Message::GetTxs(filtered_ids))
+                            Some(Message::GetTxs(missing))
                         }
                     }
                     Message::Oddsketch(peer_oddsketch) => {
@@ -203,7 +217,7 @@ fn main() {
 
                         // Slice minisketch to that length
                         let out_minisketch =
-                            mempool_guard.minisketch_slice(estimated_size as usize  + padding);
+                            mempool_guard.minisketch_slice(estimated_size as usize + padding);
 
                         Some(Message::Minisketch(out_minisketch))
                     }
@@ -265,8 +279,11 @@ fn main() {
                 }
             });
 
-            // Merge responses with heartbeat
-            let out = responses.select(heartbeat);
+            // Merge adjoin heartbeat and excess tx stream
+            let excess_tx_recv = excess_tx_recv
+                .map(Message::Txs)
+                .map_err(|_| Error::from_raw_os_error(0));
+            let out = responses.select(heartbeat).select(excess_tx_recv);
 
             // Send
             let send = send_stream.send_all(out).map(|_| ()).or_else(move |e| {
@@ -282,11 +299,11 @@ fn main() {
         tokio::spawn(block_runner);
         tokio::spawn(server);
         tokio::spawn(match peer_opt {
-            Some(peer) => Either::A(
+            Some(peer) => future::Either::A(
                 peer.and_then(|socket| peer_send.send(socket).map_err(|e| error!("{}", e)))
                     .and_then(|_| ok(())),
             ),
-            None => Either::B(ok(())),
+            None => future::Either::B(ok(())),
         });
         ok(())
     }));

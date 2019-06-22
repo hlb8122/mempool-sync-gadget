@@ -21,3 +21,4 @@ serde = "*"
 reqwest = "*"
 bytes = "*"
 clap = { version = "*", features = ["yaml"]}
+itertools = "*"
