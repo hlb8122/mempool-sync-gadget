@@ -138,7 +138,10 @@ fn main() {
                                 mempool_shared_inner,
                             ))
                         }
-                        _ => unreachable!(),
+                        _ => {
+                            error!("unexpected zmq message");
+                            unreachable!()
+                        }
                     }
                 })
         })

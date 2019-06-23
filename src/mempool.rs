@@ -6,7 +6,9 @@ use std::{
 use arrayref::array_ref;
 use bitcoin::{util::psbt::serialize::Deserialize, Transaction};
 use futures::{
-    future::{join_all, ok},
+    future::{ok, Either},
+    stream,
+    stream::Stream,
     Future,
 };
 use log::{error, info};
@@ -105,24 +107,33 @@ pub fn populate_via_rpc(
         .and_then(|resp| resp.result::<Vec<String>>())
         .and_then(move |tx_ids| {
             // Get txs from tx ids
-            let txs_fut = join_all(tx_ids.into_iter().map(move |tx_id| {
-                info!("fetching {} from rpc", tx_id);
-                let tx_req = json_client.build_request(
-                    "getrawtransaction".to_string(),
-                    vec![json!(tx_id), json!(false)],
-                );
-                json_client
-                    .send_request(&tx_req)
-                    .and_then(|resp| resp.result::<String>())
-            }));
+            let txs_fut = stream::unfold(
+                tx_ids.into_iter(),
+                move |mut tx_ids| match tx_ids.next() {
+                    Some(tx_id) => {
+                        info!("fetching {} from rpc", tx_id);
+                        let tx_req = json_client.build_request(
+                            "getrawtransaction".to_string(),
+                            vec![json!(tx_id), json!(false)],
+                        );
+                        let raw_tx_fut = json_client
+                            .send_request(&tx_req)
+                            .and_then(|resp| resp.result::<String>());
+                        Some(raw_tx_fut.map(move |raw_tx| {
+                                (raw_tx, tx_ids)
+                            }))
+                    }
+                    None => None,
+                },
+            ).collect();
 
             // Reset then add txs to gadget mempool
             let mempool_shared_inner = mempool.clone();
-            txs_fut.and_then(move |txs| {
+            txs_fut.and_then(move |raw_txs| {
                 let mut mempool_guard = mempool_shared_inner.lock().unwrap();
                 *mempool_guard = Mempool::default();
 
-                txs.iter().for_each(|raw_tx| {
+                raw_txs.iter().for_each(|raw_tx| {
                     mempool_guard
                         .insert(Transaction::deserialize(&hex::decode(raw_tx).unwrap()).unwrap());
                 });
