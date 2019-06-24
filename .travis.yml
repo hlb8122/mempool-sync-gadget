@@ -1,0 +1,9 @@
+language: rust
+rust:
+  - stable
+
+cache: cargo
+script:
+- sudo apt install libzmq3-dev
+- sudo apt install libssl-dev
+- cargo build --verbose
