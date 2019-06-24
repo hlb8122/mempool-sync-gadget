@@ -32,14 +32,14 @@ Allow Bitcoin to accept RPC connections. [See here](https://bitcoin.org/en/devel
 
 ## Running
 
-Once two nodes are running, both with RPC and ZMQ enabled.
+Once two nodes are running, both with RPC and ZMQ enabled:
 
 ### Machine A
 
 ```bash
 cargo build --release
 cd target/release
-mempool-sync-gadget [ARGS]
+mempool-sync-gadget --rpcusername xxxxxx --rpcpassword yyyyyy
 ```
 
 ### Machine B
@@ -47,7 +47,9 @@ mempool-sync-gadget [ARGS]
 ```bash
 cargo build --release
 cd target/release
-mempool-sync-gadget -peerip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy -heartbeat z
+mempool-sync-gadget -peerip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy
 ```
 
 where `X.X.X.X:Y` is the address of machine A and `z` is the length of the heartbeat period in milliseconds.
+
+For more options `mempool-sync-gadget --help`.
