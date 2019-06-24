@@ -5,8 +5,7 @@ Using a combination of ZeroMQ and RPC the gadget communicates with another insta
 ## Prerequisites
 
 ```bash
-sudo apt install libzmq3-dev
-sudo apt install libssl-dev
+sudo apt install clang libzmq3-dev libssl-dev
 ```
 
 The `minisketch-rs` library seems to try build using a Linux only header file. As a result Linux is required to build.
