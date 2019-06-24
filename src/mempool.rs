@@ -137,6 +137,7 @@ pub fn populate_via_rpc(
                     mempool_guard
                         .insert(Transaction::deserialize(&hex::decode(raw_tx).unwrap()).unwrap());
                 });
+                drop(mempool_guard);
                 ok(())
             })
         })

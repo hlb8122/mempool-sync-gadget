@@ -197,6 +197,7 @@ fn main() {
                                 Some(tx) => itertools::Either::Left(tx.clone()),
                                 None => itertools::Either::Right(*id),
                             });
+                        drop(mempool_guard);
 
                         info!("{} excess txs, {} missing ids", excess.len(), missing.len());
 
@@ -236,6 +237,7 @@ fn main() {
                         // Slice minisketch to that length
                         let out_minisketch =
                             mempool_guard.minisketch_slice(estimated_size as usize + padding);
+                        drop(mempool_guard);
 
                         info!("sending minisketch to {}", peer_addr);
                         Some(Message::Minisketch(out_minisketch))
@@ -254,6 +256,7 @@ fn main() {
                             .filter_map(|id| mempool_guard.txs().get(id))
                             .cloned()
                             .collect();
+                        drop(mempool_guard);
 
                         info!("sending txs to {}", peer_addr);
                         Some(Message::Txs(txs))
@@ -263,9 +266,11 @@ fn main() {
 
                         // Add txs to mempool (and node mempool)
                         let mut mempool_guard = mempool_shared_inner.lock().unwrap();
+                        
                         for tx in vec_txs {
                             let raw = tx.serialize();
                             mempool_guard.insert(tx);
+                            
                             let req = json_client_inner
                                 .build_request("sendrawtransaction".to_string(), vec![json!(raw)]);
                             tokio::spawn(
@@ -275,7 +280,6 @@ fn main() {
                                     .map_err(|e| error!("{:?}", e)),
                             );
                         }
-
                         None
                     }
                 }
@@ -291,9 +295,11 @@ fn main() {
                 if is_client {
                     // If client then send oddsketch every heartbeat
                     info!("sending heartbeat oddsketch to {}", peer_addr);
-                    Some(Message::Oddsketch(
-                        mempool_shared_inner.lock().unwrap().oddsketch(),
-                    ))
+                    let mempool_guard = mempool_shared_inner.lock().unwrap();
+                    let oddsketch = mempool_guard.oddsketch();
+                    drop(mempool_guard);
+
+                    Some(Message::Oddsketch(oddsketch))
                 } else {
                     None
                 }

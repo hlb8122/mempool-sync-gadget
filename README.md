@@ -5,7 +5,7 @@ Using a combination of ZeroMQ and RPC the gadget communicates with another insta
 ## Prerequisites
 
 ```bash
-sudo apt install clang
+sudo apt install libzmq3-dev
 sudo apt install libssl-dev
 ```
 
