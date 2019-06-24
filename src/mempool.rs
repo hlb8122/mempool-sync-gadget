@@ -5,12 +5,7 @@ use std::{
 
 use arrayref::array_ref;
 use bitcoin::{util::psbt::serialize::Deserialize, Transaction};
-use futures::{
-    future::{ok, Either},
-    stream,
-    stream::Stream,
-    Future,
-};
+use futures::{future::ok, stream, stream::Stream, Future};
 use log::{error, info};
 use minisketch_rs::Minisketch;
 use oddsketch::Oddsketch;
@@ -107,9 +102,8 @@ pub fn populate_via_rpc(
         .and_then(|resp| resp.result::<Vec<String>>())
         .and_then(move |tx_ids| {
             // Get txs from tx ids
-            let txs_fut = stream::unfold(
-                tx_ids.into_iter(),
-                move |mut tx_ids| match tx_ids.next() {
+            let txs_fut =
+                stream::unfold(tx_ids.into_iter(), move |mut tx_ids| match tx_ids.next() {
                     Some(tx_id) => {
                         info!("fetching {} from rpc", tx_id);
                         let tx_req = json_client.build_request(
@@ -119,13 +113,11 @@ pub fn populate_via_rpc(
                         let raw_tx_fut = json_client
                             .send_request(&tx_req)
                             .and_then(|resp| resp.result::<String>());
-                        Some(raw_tx_fut.map(move |raw_tx| {
-                                (raw_tx, tx_ids)
-                            }))
+                        Some(raw_tx_fut.map(move |raw_tx| (raw_tx, tx_ids)))
                     }
                     None => None,
-                },
-            ).collect();
+                })
+                .collect();
 
             // Reset then add txs to gadget mempool
             let mempool_shared_inner = mempool.clone();

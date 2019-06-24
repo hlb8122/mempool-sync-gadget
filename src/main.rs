@@ -52,7 +52,7 @@ fn main() {
     info!("starting...");
 
     // New peer stream
-    let (peer_send, peer_recv) = mpsc::channel::<TcpStream>(1024);
+    let (peer_send, peer_recv) = mpsc::unbounded::<TcpStream>();
 
     // Add peer
     let peer_opt = match matches.value_of("peerip") {
@@ -160,7 +160,7 @@ fn main() {
             info!("new peer {}", peer_addr);
 
             // Channel for excess txs
-            let (excess_tx_send, excess_tx_recv) = mpsc::channel::<Vec<Transaction>>(128);
+            let (excess_tx_send, excess_tx_recv) = mpsc::unbounded::<Vec<Transaction>>();
 
             // Frame socket
             let framed_sock = Framed::new(socket, MessageCodec);
@@ -266,11 +266,11 @@ fn main() {
 
                         // Add txs to mempool (and node mempool)
                         let mut mempool_guard = mempool_shared_inner.lock().unwrap();
-                        
+
                         for tx in vec_txs {
                             let raw = tx.serialize();
                             mempool_guard.insert(tx);
-                            
+
                             let req = json_client_inner
                                 .build_request("sendrawtransaction".to_string(), vec![json!(raw)]);
                             tokio::spawn(
