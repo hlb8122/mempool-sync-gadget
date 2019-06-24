@@ -24,28 +24,43 @@ impl Encoder for MessageCodec {
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
             Message::Oddsketch(oddsketch) => {
-                let raw = &oddsketch[..];
+                dst.reserve(1);
                 dst.put_u8(0);
+
+                let raw = &oddsketch[..];
                 dst.extend(raw);
             }
             Message::Minisketch(minisketch) => {
+                dst.reserve(3);
                 dst.put_u8(1);
+
                 let length = minisketch.serialized_size();
-                let mut raw = vec![0; length];
                 dst.put_u16_be(length as u16);
+
+                let mut raw = vec![0; length];
                 minisketch.serialize(&mut raw).unwrap();
                 dst.extend(raw);
             }
             Message::GetTxs(vec_ids) => {
+                dst.reserve(3);
                 dst.put_u8(2);
-                dst.put_u16_be(vec_ids.len() as u16);
+
+                let vec_len = vec_ids.len();
+                dst.put_u16_be(vec_len as u16);
+
+                dst.reserve(8 * vec_len);
                 for id in &vec_ids {
                     dst.put_u64_be(*id);
                 }
             }
             Message::Txs(vec_tx) => {
+                dst.reserve(3);
                 dst.put_u8(3);
-                dst.put_u16_be(vec_tx.len() as u16);
+
+                let vec_len = vec_tx.len();
+                dst.put_u16_be(vec_len as u16);
+
+                dst.reserve(8 * vec_len);
                 for tx in &vec_tx {
                     let raw = tx.serialize();
                     let len = raw.len();
