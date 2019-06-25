@@ -120,8 +120,12 @@ fn main() {
                             // Add new transaction to gadget mempool
                             let tx_raw: &[u8] = &multipart.get(1).unwrap();
                             let new_tx = Transaction::deserialize(tx_raw).unwrap();
-                            info!("new tx {} from zmq", new_tx.txid());
-                            mempool_shared_inner.lock().unwrap().insert(new_tx);
+
+                            let tx_id = new_tx.txid();
+                            if mempool_shared_inner.lock().unwrap().insert(new_tx) {
+                                info!("new tx {} from zmq", tx_id);
+                            }
+                            
                             future::Either::A(ok(()))
                         }
                         b"hashblock" => {
@@ -277,7 +281,7 @@ fn main() {
                                 json_client_inner
                                     .send_request(&req)
                                     .and_then(|resp| resp.result::<String>())
-                                    .map(|tx_id| info!("added {} to mempool", tx_id))
+                                    .map(|tx_id| info!("added {} to node mempool", tx_id))
                                     .map_err(|e| error!("{:?}", e)),
                             );
                         }

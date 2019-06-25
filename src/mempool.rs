@@ -31,12 +31,12 @@ impl Default for Mempool {
 }
 
 impl Mempool {
-    pub fn insert(&mut self, tx: Transaction) {
+    pub fn insert(&mut self, tx: Transaction) -> bool {
         let tx_id = tx.txid();
         let short_id = u64::from_be_bytes(*array_ref![tx_id, 0, 8]);
 
         if self.txs.contains_key(&short_id) {
-            return;
+            return false
         }
 
         // Insert into mempool
@@ -47,6 +47,8 @@ impl Mempool {
 
         // Update Oddsketch
         self.oddsketch.insert(short_id);
+
+        true
     }
 
     pub fn remove(&mut self, tx_id: Vec<u8>) {
