@@ -276,7 +276,8 @@ fn main() {
                             tokio::spawn(
                                 json_client_inner
                                     .send_request(&req)
-                                    .map(|_| {})
+                                    .and_then(|resp| resp.result::<String>())
+                                    .map(|tx_id| info!("added {} to mempool", tx_id))
                                     .map_err(|e| error!("{:?}", e)),
                             );
                         }
