@@ -56,4 +56,5 @@ For more options `mempool-sync-gadget --help`.
 ## Notes
 
 * All communication is asynchronous, however blocking does occur due to the mutex locking around the gadgets mempool.
-* The `minisketch-rs` library seems to try build using a Linux only header file. 
+* The `minisketch-rs` library seems to try build using a Linux only header file.
+* If a gadget receives a transaction from another gadget, sends it to the mempool just after the same transaction arrives at the node `missing inputs` error will be thrown and handled gracefully.
