@@ -46,7 +46,7 @@ mempool-sync-gadget --rpcusername xxxxxx --rpcpassword yyyyyy
 ```bash
 cargo build --release
 cd target/release
-mempool-sync-gadget -peerip X.X.X.X -port Y -rpcusername xxxxxx -rpcpassword yyyyyy
+mempool-sync-gadget --peerip X.X.X.X --peerport Y --rpcusername xxxxxx --rpcpassword yyyyyy
 ```
 
 where `X.X.X.X:Y` is the address of machine A and `z` is the length of the heartbeat period in milliseconds.

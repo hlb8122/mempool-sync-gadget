@@ -58,7 +58,7 @@ fn main() {
     let peer_opt = match matches.value_of("peerip") {
         Some(peer_ip) => {
             let port: u16 = matches
-                .value_of("port")
+                .value_of("peerport")
                 .map(|hb| hb.parse().unwrap_or(8885))
                 .unwrap_or(8885);
             Some(
