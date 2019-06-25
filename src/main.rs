@@ -268,7 +268,7 @@ fn main() {
                         let mut mempool_guard = mempool_shared_inner.lock().unwrap();
 
                         for tx in vec_txs {
-                            let raw = tx.serialize();
+                            let raw = hex::encode(tx.serialize());
                             mempool_guard.insert(tx);
 
                             let req = json_client_inner
