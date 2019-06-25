@@ -1,6 +1,6 @@
 # Mempool Synchronization Gadget
 
-A gadget communicates with their accompanying Bitcoin node via ZeroMQ and RPC, and with other gadgets via raw TCP in order to syncronize mempools with near minimal bandwidth in 2 round trips. If the the mempools become sync'd part way through the protocol it terminates, giving a lower than 2 round trip average.
+A gadget communicates with its accompanying Bitcoin node via ZeroMQ and RPC, and with other gadgets via raw TCP in order to syncronize mempools with near minimal bandwidth in 2 round trips. If the the mempools become sync'd part way through the protocol it terminates, giving a lower than 2 round trip average.
 
 [![Build Status](https://travis-ci.com/hlb8122/mempool-sync-gadget.svg?branch=master)](https://travis-ci.com/hlb8122/mempool-sync-gadget)
 
@@ -9,8 +9,6 @@ A gadget communicates with their accompanying Bitcoin node via ZeroMQ and RPC, a
 ```bash
 sudo apt install clang libzmq3-dev libssl-dev
 ```
-
-The `minisketch-rs` library seems to try build using a Linux only header file. As a result Linux is required to build.
 
 ### ZeroMQ
 
@@ -54,3 +52,8 @@ mempool-sync-gadget --peerip X.X.X.X --peerport Y --rpcusername xxxxxx --rpcpass
 where `X.X.X.X:Y` is the address of machine A.
 
 For more options `mempool-sync-gadget --help`.
+
+## Notes
+
+* All communication is asynchronous, however blocking does occur due to the mutex locking around the gadgets mempool.
+* The `minisketch-rs` library seems to try build using a Linux only header file. 
