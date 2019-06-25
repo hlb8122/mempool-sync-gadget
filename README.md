@@ -1,6 +1,8 @@
 # Mempool Synchronization Gadget
 
-Using a combination of ZeroMQ and RPC the gadget communicates with another instance of itself and allows two nodes mempools to be synced with near minimal bandwidth in 2 round trips.
+A gadget communicates with their accompanying Bitcoin node via ZeroMQ and RPC, and with other gadgets via raw TCP in order to syncronize mempools with near minimal bandwidth in 2 round trips. If the the mempools become sync'd part way through the protocol it terminates, giving a lower than 2 round trip average.
+
+[![Build Status](https://travis-ci.com/hlb8122/mempool-sync-gadget.svg?branch=master)](https://travis-ci.com/hlb8122/mempool-sync-gadget)
 
 ## Prerequisites
 
