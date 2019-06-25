@@ -76,13 +76,18 @@ impl Mempool {
 
     pub fn minisketch_slice(&self, capacity: usize) -> Minisketch {
         let ssize = self.minisketch.serialized_size();
-        let mut buf = vec![0u8; ssize];
 
-        self.minisketch.serialize(&mut buf).unwrap();
+        if capacity < ssize {
+            let mut buf = vec![0u8; ssize];
+            self.minisketch.serialize(&mut buf).unwrap();
 
-        let mut new_minisketch = Minisketch::try_new(64, 0, capacity).unwrap();
-        new_minisketch.deserialize(&buf[..capacity]);
-        new_minisketch
+            let mut new_minisketch = Minisketch::try_new(64, 0, capacity).unwrap();
+
+            new_minisketch.deserialize(&buf[..capacity]);
+            new_minisketch
+        } else {
+            self.minisketch()
+        }
     }
 
     pub fn insert_batch(&mut self, txs: Vec<Transaction>) {
