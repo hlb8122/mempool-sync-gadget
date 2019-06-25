@@ -1,13 +1,12 @@
+dist: xenial
 language: rust
 rust:
   - stable
 
 before_install:
-  - sudo apt install clang
-  - git clone https://github.com/zeromq/libzmq.git
-  - cd libzmq && mkdir -p libzmq_build && cd libzmq_build
-  - cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_CURVE=OFF -DZMQ_BUILD_TESTS=OFF ..
-  - sudo make -j8 install
+  - sudo apt-get update
+  - sudo apt install libzmq3-dev
+  - sudo apt install libssl-dev
 
 cache: cargo
 script:
