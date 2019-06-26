@@ -24,48 +24,46 @@ impl Encoder for MessageCodec {
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
         match item {
             Message::Oddsketch(oddsketch) => {
-                dst.reserve(1);
-                dst.put_u8(0);
-
                 let raw = &oddsketch[..];
-                dst.extend(raw);
+
+                dst.reserve(1 + DEFAULT_LEN);
+                dst.put_u8(0);
+                dst.put_slice(raw);
             }
             Message::Minisketch(minisketch) => {
-                dst.reserve(3);
-                dst.put_u8(1);
-
                 let length = minisketch.serialized_size();
-                dst.put_u16_be(length as u16);
-
                 let mut raw = vec![0; length];
                 minisketch.serialize(&mut raw).unwrap();
-                dst.extend(raw);
+
+                dst.reserve(3 + length);
+                dst.put_u8(1);
+                dst.put_u16_be(length as u16);
+                dst.put_slice(&raw);
             }
             Message::GetTxs(vec_ids) => {
-                dst.reserve(3);
-                dst.put_u8(2);
-
                 let vec_len = vec_ids.len();
-                dst.put_u16_be(vec_len as u16);
 
-                dst.reserve(8 * vec_len);
+                dst.reserve(3 + 8 * vec_len);
+                dst.put_u8(2);
+                dst.put_u16_be(vec_len as u16);
                 for id in &vec_ids {
                     dst.put_u64_be(*id);
                 }
             }
             Message::Txs(vec_tx) => {
+                let vec_len = vec_tx.len();
+
                 dst.reserve(3);
                 dst.put_u8(3);
-
-                let vec_len = vec_tx.len();
                 dst.put_u16_be(vec_len as u16);
 
-                dst.reserve(8 * vec_len);
                 for tx in &vec_tx {
                     let raw = tx.serialize();
                     let len = raw.len();
+                    
+                    dst.reserve(2 + len);
                     dst.put_u16_be(len as u16);
-                    dst.extend(raw);
+                    dst.put_slice(&raw);
                 }
             }
         }
